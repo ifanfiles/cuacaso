@@ -2,275 +2,208 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Radar Hujan + Prakiraan Cuaca Kabupaten</title>
+  <title>Radar + Prakiraan Kabupaten</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { margin:0; font-family: Arial, sans-serif; background:#f4f6f9; }
-    #map { height: 60vh; width: 100%; }
+    body { margin:0; font-family: Arial, sans-serif; background:#f4f6f9; display:flex; }
+    #map { height: 100vh; width: 70%; }
 
-    .control {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 5px 10px;
-      border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      z-index: 1000;
-    }
-    .control button {
-      margin: 2px;
-      padding: 4px 8px;
-      border: none;
-      background: #1976d2;
-      color: white;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .control button:hover { background: #125a9c; }
-
-    .timestamp {
-      position: absolute;
-      bottom: 50px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.6);
-      color: white;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-family: monospace;
-      z-index: 1000;
+    #sidebar {
+      width: 30%; height: 100vh;
+      background: #fff; padding: 12px; overflow:auto;
+      box-shadow: -2px 0 8px rgba(0,0,0,0.1);
     }
 
-    .slider-container {
-      position: absolute;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 60%;
-      z-index: 1000;
-      text-align: center;
-    }
-    .slider-container input { width: 100%; }
+    h2 { margin: 0 0 10px; font-size: 18px; }
+    label { font-size: 13px; display:block; margin: 8px 0 4px; }
+
+    table { width:100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
+    th { background: #f0f3f7; }
 
     .legend {
-      position: absolute;
-      bottom: 10px;
-      right: 10px;
-      background: white;
-      padding: 8px;
-      border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      font-size: 12px;
-      line-height: 1.4;
-      z-index: 1000;
+      margin-top: 12px; font-size: 12px;
     }
-    .legend div { display: flex; align-items: center; margin-bottom: 2px; }
+    .legend div { display:flex; align-items:center; margin:2px 0; }
     .legend span {
-      display: inline-block;
-      width: 18px;
-      height: 12px;
-      margin-right: 6px;
+      width: 18px; height: 12px; margin-right: 6px;
+      display:inline-block;
     }
 
-    /* Forecast panel */
-    #forecast {
-      padding: 12px;
-      margin: 12px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    .controls { margin:10px 0; display:flex; gap:6px; }
+    .controls button {
+      padding: 6px 10px; border:none; border-radius:6px;
+      background:#2c7be5; color:#fff; font-size:12px; cursor:pointer;
     }
-    #forecast table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    #forecast th, #forecast td {
-      border: 1px solid #ddd;
-      padding: 6px 8px;
-      font-size: 13px;
-    }
-    #forecast th { background: #f0f3f7; text-align: left; }
+    .controls button:hover { background:#1a5fb4; }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="sidebar">
+    <h2>Prakiraan Kabupaten</h2>
+    <label>Pilih Slot Waktu:</label>
+    <select id="timeSelect"></select>
 
-  <div class="control">
-    <button id="prev">⏪ Prev</button>
-    <button id="play">▶ Play</button>
-    <button id="stop">⏹ Stop</button>
-    <button id="next">⏩ Next</button>
-  </div>
+    <div class="controls">
+      <button id="prevBtn">⏪ Prev</button>
+      <button id="playBtn">▶ Play</button>
+      <button id="stopBtn">⏹ Stop</button>
+      <button id="nextBtn">⏩ Next</button>
+    </div>
 
-  <div class="timestamp" id="timestamp">Loading...</div>
+    <label>Pilih Kabupaten:</label>
+    <select id="kabSelect"></select>
 
-  <div class="slider-container">
-    <input type="range" id="frameSlider" min="0" value="0" step="1">
-  </div>
-
-  <!-- Legend -->
-  <div class="legend">
-    <strong>Intensitas Hujan</strong>
-    <div><span style="background:#00bfff"></span> Ringan</div>
-    <div><span style="background:#00ff00"></span> Sedang</div>
-    <div><span style="background:#ffff00"></span> Lebat</div>
-    <div><span style="background:#ff8000"></span> Sangat Lebat</div>
-    <div><span style="background:#ff0000"></span> Ekstrem</div>
-    <div><span style="background:#a000a0"></span> Sangat Ekstrem</div>
-  </div>
-
-  <!-- Forecast Panel -->
-  <div id="forecast">
-    <h3>Prakiraan Cuaca per Kabupaten</h3>
-    <label>Pilih Kabupaten:
-      <select id="kabSelect"></select>
-    </label>
     <table>
       <thead>
-        <tr><th>Waktu</th><th>Cuaca</th><th>Suhu (°C)</th><th>Kelembapan (%)</th></tr>
+        <tr><th>Waktu</th><th>Cuaca</th><th>Suhu</th><th>Kelembapan</th></tr>
       </thead>
       <tbody id="forecastBody">
         <tr><td colspan="4">Belum ada data</td></tr>
       </tbody>
     </table>
+
+    <div class="legend">
+      <strong>Keterangan Warna</strong>
+      <div><span style="background:#87CEEB"></span> Cerah</div>
+      <div><span style="background:#90EE90"></span> Cerah Berawan / Berawan</div>
+      <div><span style="background:#FFD700"></span> Hujan Ringan</div>
+      <div><span style="background:#FFA500"></span> Hujan Sedang</div>
+      <div><span style="background:#FF0000"></span> Hujan Lebat</div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([-7.685, 109.903], 6); // Jawa Tengah
+    const map = L.map('map').setView([-7.7, 110.3], 8);
 
-    // Basemap
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles © Esri'
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    let radarLayers = [];
-    let currentFrame = 0;
-    let playInterval;
-    let frames = [];
-
-    const tsElement = document.getElementById("timestamp");
-    const slider = document.getElementById("frameSlider");
-
-    function formatTime(utc) {
-      const date = new Date(utc * 1000);
-      date.setHours(date.getUTCHours() + 7); // WIB
-      return date.toLocaleString("id-ID", {
-        day: "2-digit", month: "short", year: "numeric",
-        hour: "2-digit", minute: "2-digit"
-      });
-    }
-
-    function showFrame(i) {
-      radarLayers.forEach((layer, idx) => {
-        layer.setOpacity(idx === i ? 0.7 : 0);
-      });
-      tsElement.innerText =
-        formatTime(frames[i].time) + (frames[i].forecast ? " (Forecast)" : "");
-      slider.value = i;
-    }
-
-    // Load RainViewer data
-    fetch("https://api.rainviewer.com/public/weather-maps.json")
-      .then(res => res.json())
-      .then(data => {
-        const host = data.host;
-        frames = [...data.radar.past, ...data.radar.nowcast];
-        slider.max = frames.length - 1;
-
-        frames.forEach(frame => {
-          const url = `${host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-          const layer = L.tileLayer(url, { opacity: 0, attribution: "RainViewer.com" });
-          radarLayers.push(layer);
-          layer.addTo(map);
-        });
-
-        showFrame(currentFrame);
-
-        document.getElementById("play").addEventListener("click", () => {
-          clearInterval(playInterval);
-          playInterval = setInterval(() => {
-            currentFrame = (currentFrame + 1) % radarLayers.length;
-            showFrame(currentFrame);
-          }, 800);
-        });
-
-        document.getElementById("stop").addEventListener("click", () => {
-          clearInterval(playInterval);
-        });
-
-        document.getElementById("next").addEventListener("click", () => {
-          clearInterval(playInterval);
-          currentFrame = (currentFrame + 1) % radarLayers.length;
-          showFrame(currentFrame);
-        });
-
-        document.getElementById("prev").addEventListener("click", () => {
-          clearInterval(playInterval);
-          currentFrame = (currentFrame - 1 + radarLayers.length) % radarLayers.length;
-          showFrame(currentFrame);
-        });
-
-        slider.addEventListener("input", (e) => {
-          clearInterval(playInterval);
-          currentFrame = parseInt(e.target.value);
-          showFrame(currentFrame);
-        });
-      });
-
-    // Load batas wilayah
-    fetch("batas_wilayah.geojson")
-      .then(res => res.json())
-      .then(data => {
-        const geojsonLayer = L.geoJSON(data, {
-          style: {
-            color: "#ffffff",
-            weight: 2,
-            opacity: 0.8,
-            dashArray: "3, 5",
-            fillOpacity: 0
-          },
-          onEachFeature: (feature, layer) => {
-            const nama = feature.properties.FIRST_KA_1 || feature.properties.NAME || "Tanpa Nama";
-            layer.bindTooltip(nama, { permanent: false, direction: "center" });
-          }
-        }).addTo(map);
-        map.fitBounds(geojsonLayer.getBounds());
-      });
-
-    // ========== Forecast JSON ================
     let RAW = null;
+    let geojsonLayer = null;
+    let currentSlot = null;
+    let slots = [];
+    let playTimer = null;
 
-    async function loadForecast() {
-      try {
-        const res = await fetch("prakiraan_kabupaten_full3jam.json");
-        RAW = await res.json();
-      } catch (err) {
-        console.error("Gagal load prakiraan JSON:", err);
-        return;
-      }
-      const kabSelect = document.getElementById("kabSelect");
-      kabSelect.innerHTML = "";
-      Object.keys(RAW).sort().forEach(k => {
-        const opt = document.createElement("option");
-        opt.value = k;
-        opt.textContent = k;
-        kabSelect.appendChild(opt);
-      });
-      kabSelect.onchange = () => renderTable(kabSelect.value);
-      renderTable(Object.keys(RAW)[0]);
+    function colorByWeather(cuaca) {
+      if(!cuaca) return "#ccc";
+      if(cuaca.includes("Lebat")) return "#FF0000";
+      if(cuaca.includes("Sedang")) return "#FFA500";
+      if(cuaca.includes("Ringan")) return "#FFD700";
+      if(cuaca.includes("Berawan")) return "#90EE90";
+      if(cuaca.includes("Cerah")) return "#87CEEB";
+      return "#ccc";
     }
 
     function renderTable(kab) {
       const tbody = document.getElementById("forecastBody");
       tbody.innerHTML = "";
-      const rows = RAW[kab] || {};
-      Object.keys(rows).forEach(time => {
-        const r = rows[time];
+      if(!RAW[kab]) {
+        tbody.innerHTML = "<tr><td colspan='4'>Tidak ada data</td></tr>";
+        return;
+      }
+      Object.entries(RAW[kab]).forEach(([time, val]) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${time}</td><td>${r.cuaca}</td><td>${r.suhu}</td><td>${r.hum}</td>`;
+        tr.innerHTML = `<td>${time}</td><td>${val.cuaca}</td><td>${val.suhu}</td><td>${val.hum}</td>`;
         tbody.appendChild(tr);
       });
     }
+
+    function updateMap(slot) {
+      document.getElementById("timeSelect").value = slot;
+      geojsonLayer.eachLayer(layer => {
+        const kab = layer.feature.properties.WADMKK;
+        const data = RAW[kab] && RAW[kab][slot];
+        const fillColor = data ? colorByWeather(data.cuaca) : "#ccc";
+        layer.setStyle({ fillColor, fillOpacity: 0.6, color: "#333", weight: 1 });
+      });
+    }
+
+    async function loadForecast() {
+      const res = await fetch("prakiraan_kabupaten_full3jam.json");
+      RAW = await res.json();
+
+      const kabSelect = document.getElementById("kabSelect");
+      kabSelect.innerHTML = "";
+      Object.keys(RAW).sort().forEach(k => {
+        const opt = document.createElement("option");
+        opt.value = k; opt.textContent = k;
+        kabSelect.appendChild(opt);
+      });
+      kabSelect.onchange = () => renderTable(kabSelect.value);
+
+      slots = Object.keys(Object.values(RAW)[0]);
+      const timeSelect = document.getElementById("timeSelect");
+      timeSelect.innerHTML = "";
+      slots.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s; opt.textContent = s;
+        timeSelect.appendChild(opt);
+      });
+      timeSelect.onchange = () => {
+        currentSlot = timeSelect.value;
+        updateMap(currentSlot);
+      };
+
+      currentSlot = slots[0];
+      timeSelect.value = currentSlot;
+
+      renderTable(Object.keys(RAW)[0]);
+
+      const geoRes = await fetch("batas_wilayah.geojson");
+      const geoData = await geoRes.json();
+      geojsonLayer = L.geoJSON(geoData, {
+        style: () => ({ color: "#333", weight: 1, fillOpacity: 0.6 }),
+        onEachFeature: (feature, layer) => {
+          const kab = feature.properties.WADMKK;
+          layer.bindTooltip(kab);
+          layer.on("click", () => {
+            kabSelect.value = kab;
+            renderTable(kab);
+          });
+        }
+      }).addTo(map);
+
+      updateMap(currentSlot);
+      map.fitBounds(geojsonLayer.getBounds());
+    }
+
+    // kontrol animasi
+    document.getElementById("playBtn").onclick = () => {
+      if(playTimer) return;
+      playTimer = setInterval(() => {
+        let idx = slots.indexOf(currentSlot);
+        idx = (idx + 1) % slots.length;
+        currentSlot = slots[idx];
+        updateMap(currentSlot);
+      }, 1500);
+    };
+
+    document.getElementById("stopBtn").onclick = () => {
+      clearInterval(playTimer);
+      playTimer = null;
+    };
+
+    document.getElementById("nextBtn").onclick = () => {
+      clearInterval(playTimer);
+      playTimer = null;
+      let idx = slots.indexOf(currentSlot);
+      idx = (idx + 1) % slots.length;
+      currentSlot = slots[idx];
+      updateMap(currentSlot);
+    };
+
+    document.getElementById("prevBtn").onclick = () => {
+      clearInterval(playTimer);
+      playTimer = null;
+      let idx = slots.indexOf(currentSlot);
+      idx = (idx - 1 + slots.length) % slots.length;
+      currentSlot = slots[idx];
+      updateMap(currentSlot);
+    };
 
     loadForecast();
   </script>
