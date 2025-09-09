@@ -1,24 +1,19 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Radar + Prakiraan BMKG</title>
+  <meta charset="UTF-8" />
+  <title>Radar + Prakiraan (robust)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    #map { height: 100vh; width: 100%; }
-    .control, .timestamp, .slider-container, .legend {
-      position: absolute; z-index: 1000;
-      background: white; border-radius: 6px; padding: 5px 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    }
-    .control { top: 10px; left: 10px; }
-    .control button { margin:2px; padding:4px 8px; border:none; border-radius:4px; cursor:pointer; background:#1976d2; color:white; }
-    .control button:hover { background:#125a9c; }
-    .timestamp { bottom: 50px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: white; font-family: monospace; }
-    .slider-container { bottom: 10px; left: 50%; transform: translateX(-50%); width: 60%; text-align:center; }
-    .legend { bottom: 10px; right: 10px; font-size:12px; }
-    .legend div { display:flex; align-items:center; margin-bottom:2px; }
-    .legend span { width:18px; height:12px; margin-right:6px; display:inline-block; }
+    html,body,#map{height:100%;margin:0;padding:0}
+    #map{width:100%}
+    .control{position:absolute;top:8px;left:8px;z-index:1000;background:#fff;padding:6px;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+    .control button{margin:2px;padding:6px 8px;border:none;background:#1976d2;color:#fff;border-radius:4px;cursor:pointer}
+    .timestamp{position:absolute;bottom:56px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(0,0,0,.6);color:#fff;padding:6px;border-radius:6px;font-family:monospace}
+    .slider-container{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:60%;z-index:1000}
+    .legend{position:absolute;bottom:10px;right:10px;z-index:1000;background:#fff;padding:8px;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+    .errorBox{position:fixed;top:10px;right:10px;background:#fee;border:1px solid #f88;padding:8px;border-radius:6px;z-index:1500;max-width:360px}
+    pre{white-space:pre-wrap;word-break:break-word}
   </style>
 </head>
 <body>
@@ -32,124 +27,225 @@
   </div>
 
   <div class="timestamp" id="timestamp">Loading...</div>
+  <div class="slider-container"><input type="range" id="frameSlider" min="0" value="0" step="1"></div>
 
-  <div class="slider-container">
-    <input type="range" id="frameSlider" min="0" value="0" step="1">
-  </div>
-
-  <!-- Legend -->
   <div class="legend">
-    <strong>Kategori Cuaca</strong>
-    <div><span style="background:#00bfff"></span> Hujan Ringan</div>
-    <div><span style="background:#0077ff"></span> Hujan Sedang</div>
-    <div><span style="background:#0000ff"></span> Hujan Lebat</div>
-    <div><span style="background:#888"></span> Berawan</div>
-    <div><span style="background:#ffff00"></span> Cerah Berawan</div>
-    <div><span style="background:#ffcc00"></span> Cerah</div>
+    <strong>Legend (prakiraan)</strong>
+    <div><span style="display:inline-block;width:18px;height:12px;background:#00bfff;margin-right:6px"></span>Hujan Ringan</div>
+    <div><span style="display:inline-block;width:18px;height:12px;background:#0077ff;margin-right:6px"></span>Hujan Sedang</div>
+    <div><span style="display:inline-block;width:18px;height:12px;background:#0000ff;margin-right:6px"></span>Hujan Lebat</div>
+    <div><span style="display:inline-block;width:18px;height:12px;background:#888;margin-right:6px"></span>Berawan</div>
   </div>
+
+  <div id="error" style="display:none" class="errorBox"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([-7.685, 109.903], 7);
-
-    // Basemap
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
-
-    let radarLayers = [];
-    let frames = [];
-    let currentFrame = 0;
-    let playInterval;
-    const slider = document.getElementById("frameSlider");
-    const tsElement = document.getElementById("timestamp");
-
-    // Warna sesuai cuaca
-    function colorCuaca(c) {
-      if (!c) return "#ccc";
-      if (c.includes("Lebat")) return "#0000ff";
-      if (c.includes("Sedang")) return "#0077ff";
-      if (c.includes("Ringan")) return "#00bfff";
-      if (c.includes("Berawan")) return "#888";
-      if (c.includes("Cerah Berawan")) return "#ffff00";
-      if (c.includes("Cerah")) return "#ffcc00";
-      return "#ccc";
+  // ----------------- helper fetch yang aman -----------------
+  async function fetchJson(url, friendlyName = url) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) {
+        const txt = await res.text().catch(()=>"(no preview)");
+        const msg = `${friendlyName} — HTTP ${res.status} ${res.statusText}\nPreview:\n${txt.slice(0,800)}`;
+        throw new Error(msg);
+      }
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        const preview = text.slice(0,800);
+        throw new Error(`${friendlyName} — Gagal parse JSON. Preview:\n${preview}`);
+      }
+    } catch (err) {
+      showError(err.message);
+      console.error("fetchJson error:", err);
+      throw err;
     }
+  }
 
+  function showError(msg){
+    const box = document.getElementById('error');
+    box.style.display = 'block';
+    box.innerHTML = `<b>Terjadi kesalahan:</b><br><pre>${escapeHtml(msg)}</pre>`;
+  }
+  function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  // ----------------- map & rainviewer -----------------
+  const map = L.map('map').setView([-7.685, 109.903], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+  let radarLayers = [];
+  let frames = [];
+  let currentFrame = 0;
+  let playInterval;
+  const slider = document.getElementById('frameSlider');
+  const tsElement = document.getElementById('timestamp');
+
+  async function init() {
+    // 1) muat prakiraan (file harus tersedia di repo/publik)
     let prakiraanData = null;
-    let geojsonLayer;
-
-    // Load prakiraan JSON
-    fetch("prakiraan_kabupaten_full3jam.json")
-      .then(r => r.json())
-      .then(data => { prakiraanData = data; });
-
-    // Load RainViewer
-    fetch("https://api.rainviewer.com/public/weather-maps.json")
-      .then(res => res.json())
-      .then(data => {
-        const host = data.host;
-        frames = [...data.radar.past, ...data.radar.nowcast];
-        slider.max = frames.length - 1;
-
-        frames.forEach(frame => {
-          const url = `${host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-          const layer = L.tileLayer(url, { opacity: 0 });
-          radarLayers.push(layer);
-          layer.addTo(map);
-        });
-
-        showFrame(0);
-
-        document.getElementById("play").onclick = () => {
-          clearInterval(playInterval);
-          playInterval = setInterval(() => {
-            currentFrame = (currentFrame + 1) % frames.length;
-            showFrame(currentFrame);
-          }, 1000);
-        };
-        document.getElementById("stop").onclick = () => clearInterval(playInterval);
-        document.getElementById("next").onclick = () => { currentFrame = (currentFrame + 1) % frames.length; showFrame(currentFrame); };
-        document.getElementById("prev").onclick = () => { currentFrame = (currentFrame - 1 + frames.length) % frames.length; showFrame(currentFrame); };
-        slider.oninput = e => { currentFrame = parseInt(e.target.value); showFrame(currentFrame); };
-      });
-
-    function formatTime(utc) {
-      const date = new Date(utc * 1000);
-      date.setHours(date.getUTCHours() + 7);
-      return date.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    try {
+      // GANTI NAMA FILE INI SESUAI DENGAN LOKASIMU di repo
+      prakiraanData = await fetchJson('prakiraan_kabupaten_full3jam.json', 'Prakiraan JSON');
+      console.log("Prakiraan loaded:", Object.keys(prakiraanData).length, "kabupaten");
+    } catch(e){
+      console.warn("Prakiraan JSON tidak dimuat, peta tetap jalan tanpa pewarnaan prakiraan.");
     }
 
+    // 2) muat batas wilayah (GeoJSON)
+    let geojsonData = null;
+    try {
+      // GANTI NAMA FILE INI JIKA PERLU
+      geojsonData = await fetchJson('batas_wilayah.geojson', 'Batas wilayah GeoJSON');
+      console.log("GeoJSON loaded:", geojsonData.features?.length || 0);
+    } catch(e){
+      console.warn("GeoJSON tidak dimuat:", e);
+    }
+
+    // 3) muat RainViewer
+    let rv = null;
+    try {
+      rv = await fetchJson('https://api.rainviewer.com/public/weather-maps.json', 'Rainviewer metadata');
+    } catch(e){
+      showError("Gagal ambil data RainViewer — periksa koneksi.");
+      return;
+    }
+
+    const host = rv.host;
+    frames = [...(rv.radar?.past||[]), ...(rv.radar?.nowcast||[])];
+    if (!frames.length) {
+      showError("Tidak ada frame radar dari RainViewer.");
+      return;
+    }
+
+    slider.max = frames.length - 1;
+
+    // add tiles
+    frames.forEach((frame, idx) => {
+      const url = `${host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+      const layer = L.tileLayer(url, { opacity: 0, attribution: 'RainViewer' });
+      radarLayers.push(layer);
+      layer.addTo(map);
+    });
+
+    // add geojson layer (jika ada)
+    let geojsonLayer = null;
+    if (geojsonData) {
+      geojsonLayer = L.geoJSON(geojsonData, {
+        style: { color: '#555', weight: 1, fillOpacity: 0.15 },
+        onEachFeature: function(feature, layer){
+          // bind popup placeholder: di-update per frame
+          const name = feature.properties.FIRST_KA_1 || feature.properties.NAME || feature.properties.WADMKK || "Tidak diketahui";
+          layer.bindPopup(`<b>${name}</b><br>Memuat data...`);
+        }
+      }).addTo(map);
+      map.fitBounds(geojsonLayer.getBounds());
+    }
+
+    // fungsi bantu parse label waktu dari JSON prakiraan (format: "08 Sep 08:00" atau "08 Sep 2025 08:00")
+    function parseLabelToDate(label){
+      if(!label) return null;
+      // hapus weekday jika ada
+      label = label.replace(/^[A-Za-z]+,\s*/,'').trim();
+      // patterns: "08 Sep 2025 08:00", "08 Sep 08:00", "2025-09-08 08:00:00"
+      // try ISO-like first
+      const isoMatch = label.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}(:\d{2})?)/);
+      if(isoMatch) return new Date(label.replace(' ','T'));
+      // try "DD Mon YYYY HH:MM"
+      const m = label.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})\s+(\d{1,2}):(\d{2})$/);
+      if(m) {
+        const day = parseInt(m[1],10), mon = m[2].toLowerCase().slice(0,3), year = parseInt(m[3],10), hh = parseInt(m[4],10), mm = parseInt(m[5],10);
+        const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+        return new Date(year, months[mon] || 0, day, hh, mm);
+      }
+      // try "DD Mon HH:MM" (no year) -> assume current year
+      const m2 = label.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{1,2}):(\d{2})$/);
+      if(m2){
+        const day = parseInt(m2[1],10), mon = m2[2].toLowerCase().slice(0,3), hh = parseInt(m2[3],10), mm = parseInt(m2[4],10);
+        const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+        const year = (new Date()).getFullYear();
+        return new Date(year, months[mon]||0, day, hh, mm);
+      }
+      // fallback: try Date.parse
+      const tryDate = new Date(label);
+      return isNaN(tryDate) ? null : tryDate;
+    }
+
+    // cari label prakiraan paling dekat dengan waktu frame (frame.time = unix seconds UTC)
+    function findClosestLabel(slotMap, frameUnixUtc){
+      if(!slotMap) return null;
+      const keys = Object.keys(slotMap);
+      if(!keys.length) return null;
+      const frameLocalMillis = frameUnixUtc*1000 + (7*3600*1000); // ubah ke WIB (UTC+7)
+      let best = keys[0], bestDiff = Infinity;
+      for(const k of keys){
+        const d = parseLabelToDate(k);
+        if(!d) continue;
+        const diff = Math.abs(d.getTime() - frameLocalMillis);
+        if(diff < bestDiff){ bestDiff = diff; best = k; }
+      }
+      return best;
+    }
+
+    // update function saat ganti frame
     function showFrame(i) {
       radarLayers.forEach((layer, idx) => layer.setOpacity(idx === i ? 0.7 : 0));
-      tsElement.innerText = formatTime(frames[i].time);
+      tsElement.innerText = (new Date(frames[i].time*1000 + 7*3600*1000)).toLocaleString('id-ID', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
 
-      // Update prakiraan kabupaten sesuai label waktu
+      // kalau ada prakiraan & geojson -> update style & popup
       if (prakiraanData && geojsonLayer) {
         geojsonLayer.eachLayer(layer => {
-          const kab = layer.feature.properties.FIRST_KA_1 || layer.feature.properties.NAME;
+          const props = layer.feature.properties || {};
+          // cari nama kabupaten di properti (sesuaikan fieldmu)
+          const kabNames = [props.FIRST_KA_1, props.NAME, props.WADMKK].filter(Boolean);
+          const kab = kabNames[0] || null;
+          if (!kab) return;
+
           const slotMap = prakiraanData[kab];
-          if (slotMap) {
-            // ambil label pertama yang ada
-            const label = Object.keys(slotMap)[i % Object.keys(slotMap).length];
-            const info = slotMap[label];
-            const clr = colorCuaca(info.cuaca);
-            layer.setStyle({ fillColor: clr, fillOpacity: 0.5, color: "#555", weight: 1 });
-            layer.bindPopup(`<b>${kab}</b><br>${label}<br>🌦 ${info.cuaca}<br>🌡 ${info.suhu} °C<br>💧 ${info.hum} %`);
+          if (!slotMap) {
+            layer.setStyle({ fillColor: '#ddd', fillOpacity: 0.05, color:'#555' });
+            layer.bindPopup(`<b>${kab}</b><br>Tidak ada data prakiraan.`);
+            return;
           }
+
+          const label = findClosestLabel(slotMap, frames[i].time);
+          if (!label) {
+            layer.setStyle({ fillColor: '#ddd', fillOpacity: 0.05, color:'#555' });
+            layer.bindPopup(`<b>${kab}</b><br>Tidak ada label waktu cocok.`);
+            return;
+          }
+
+          const info = slotMap[label] || { cuaca:'-', suhu:'-', hum:'-' };
+          // warna berdasarkan cuaca (simple)
+          let clr = '#ccc';
+          if (info.cuaca && info.cuaca.includes('Lebat')) clr = '#0000ff';
+          else if (info.cuaca && info.cuaca.includes('Sedang')) clr = '#0077ff';
+          else if (info.cuaca && info.cuaca.includes('Ringan')) clr = '#00bfff';
+          else if (info.cuaca && info.cuaca.includes('Berawan')) clr = '#888';
+          else clr = '#ddd';
+
+          layer.setStyle({ fillColor: clr, fillOpacity: 0.5, color:'#555', weight:1 });
+          layer.bindPopup(`<b>${kab}</b><br><small>${label}</small><br>🌦 ${escapeHtml(info.cuaca||'-')}<br>🌡 ${escapeHtml(info.suhu||'-')} °C<br>💧 ${escapeHtml(info.hum||'-')} %`);
         });
       }
     }
 
-    // Load batas kabupaten
-    fetch("batas_wilayah.geojson")
-      .then(res => res.json())
-      .then(data => {
-        geojsonLayer = L.geoJSON(data, {
-          style: { color: "#555", weight: 1, fillOpacity: 0.1 }
-        }).addTo(map);
-        map.fitBounds(geojsonLayer.getBounds());
-      });
+    // event handlers
+    document.getElementById('play').onclick = () => {
+      clearInterval(playInterval);
+      playInterval = setInterval(()=>{ currentFrame = (currentFrame+1) % frames.length; slider.value = currentFrame; showFrame(currentFrame); }, 900);
+    };
+    document.getElementById('stop').onclick = () => clearInterval(playInterval);
+    document.getElementById('next').onclick = ()=>{ currentFrame=(currentFrame+1)%frames.length; slider.value=currentFrame; showFrame(currentFrame); };
+    document.getElementById('prev').onclick = ()=>{ currentFrame=(currentFrame-1+frames.length)%frames.length; slider.value=currentFrame; showFrame(currentFrame); };
+    slider.oninput = e => { currentFrame = parseInt(e.target.value); showFrame(currentFrame); };
+
+    // initial render
+    showFrame(0);
+  } // end init
+
+  init().catch(e => console.error("Init error:", e));
   </script>
 </body>
 </html>
