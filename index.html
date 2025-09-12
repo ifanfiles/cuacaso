@@ -115,7 +115,7 @@
 
   function styleFeature(feature, timeKey){
     const props = feature.properties || {};
-    const kabupaten = props.WADMKD;
+    const kabupaten = props.WADMKK;
     let cuaca = null, suhu = null, hum = null;
 
     const k = Object.keys(forecastData).find(fk => normName(fk) === normName(kabupaten));
@@ -138,7 +138,7 @@
     layer.on({
       click: function(e){
         const props = feature.properties || {};
-        const kabupaten = props.WADMKD;
+        const kabupaten = props.WADMKK;
         const t = document.getElementById('timeSelect').value;
         let html = '<strong>'+kabupaten+'</strong><br/>';
         const k = Object.keys(forecastData).find(fk => normName(fk) === normName(kabupaten));
