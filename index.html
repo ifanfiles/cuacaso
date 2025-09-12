@@ -176,12 +176,7 @@ fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
       });
     }
     const color = categoryColors[cuaca] || '#cccccc';
-    return { 
-  color:'#888',        // warna garis desa
-  weight:0.5,          // tipis
-  fillOpacity:0.7,       // transparan penuh
-  fillColor:'color'
-};
+    return { color:'#444', weight:0.6, fillColor:color, fillOpacity:0.85 };
   }
   function onEachFeature(feature, layer){
     layer.on('click', function(){
