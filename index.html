@@ -124,23 +124,17 @@
     currentIndex = 0;
     addGeojsonLayer(geojson, timestamps[currentIndex]);
 
-    // Tambahkan layer batas kabupaten (tebal, transparan)
-let kabupatenLayer = L.geoJson(geojson, {
-  style: function(feature){
-    return {
-      color: "black",   // warna garis kabupaten
-      weight: 2.5,      // ketebalan garis
-      fillOpacity: 0    // jangan ada isi (hanya garis)
-    };
-  },
-  filter: function(feature){
-    // hanya tampilkan kalau punya atribut WADMKK
-    return feature.properties && feature.properties.WADMKK;
-  }
-}).addTo(map);
-
-kabupatenLayer.bringToFront();  // supaya selalu di atas layer desa
-
+// Tambah layer batas kabupaten (file hasil dissolve)
+fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
+  let kabupatenLayer = L.geoJson(kabGeo, {
+    style: {
+      color: "black",   // warna garis
+      weight: 2.5,      // ketebalan
+      fillOpacity: 0    // transparan
+    }
+  }).addTo(map);
+  kabupatenLayer.bringToFront();
+});
 
     // event listeners
     timeSelect.addEventListener('change', (e)=>{
