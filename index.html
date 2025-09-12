@@ -29,6 +29,13 @@
     <label>Waktu: <select id="timeSelect"></select></label>
     <button id="playBtn">▶ Play</button>
     <button id="pauseBtn" disabled>⏸ Pause</button>
+    <label>Kecepatan: 
+      <select id="speedSelect">
+        <option value="1000">1 detik</option>
+        <option value="2000" selected>2 detik</option>
+        <option value="5000">5 detik</option>
+      </select>
+    </label>
   </div>
   <div id="map"></div>
   <div id="legend" class="legend" style="position: absolute; right: 10px; bottom: 10px; z-index:1000;"></div>
@@ -38,9 +45,9 @@
   <script>
   // --- Warna kategori cuaca ---
   const categoryColors = {
-    "Cerah": "#bcd4ff",
-    "Cerah Berawan": "#d6f5d6",
-    "Berawan": "#e8e8e8",
+    "Cerah": "#000000",
+    "Cerah Berawan": "#000000",
+    "Berawan": "#0000000",
     "Hujan Ringan": "#7be57b",
     "Hujan Sedang": "#ffd84d",
     "Hujan Lebat": "#ff9a2e",
@@ -61,6 +68,7 @@
   let timestamps = [];
   let playInterval = null;
   let currentIndex = 0;
+  let playSpeed = 2000; // default 2 detik
 
   function normName(name){
     return (name||'').trim().toLowerCase();
@@ -92,6 +100,14 @@
 
     document.getElementById('playBtn').addEventListener('click', startPlay);
     document.getElementById('pauseBtn').addEventListener('click', stopPlay);
+
+    document.getElementById('speedSelect').addEventListener('change', (e)=>{
+      playSpeed = parseInt(e.target.value);
+      if(playInterval){ // restart interval dengan speed baru
+        stopPlay();
+        startPlay();
+      }
+    });
 
     drawLegend();
   }).catch(err=>{
@@ -186,7 +202,7 @@
     playInterval = setInterval(()=>{
       currentIndex = (currentIndex + 1) % timestamps.length;
       updateChoropleth(timestamps[currentIndex]);
-    }, 2000);
+    }, playSpeed);
   }
 
   function stopPlay(){
