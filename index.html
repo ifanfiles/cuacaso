@@ -8,18 +8,31 @@
   <style>
     body { margin:0; font-family: Arial, sans-serif; }
     #map { height: 86vh; }
-    .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
+    .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); display:flex; gap:10px; align-items:center;}
     .legend { background:#fff; padding:8px; line-height:1.6; }
     .legend .item { display:flex; align-items:center; gap:8px; }
     .colorbox { width:18px; height:14px; display:inline-block; border:1px solid #444; }
+    .timestamp-overlay {
+      position:absolute;
+      top:10px; left:10px;
+      background:rgba(255,255,255,0.8);
+      padding:6px 12px;
+      border-radius:4px;
+      font-size:18px;
+      font-weight:bold;
+      z-index:1000;
+    }
   </style>
 </head>
 <body>
   <div class="controls">
     <label>Waktu: <select id="timeSelect"></select></label>
+    <button id="playBtn">▶ Play</button>
+    <button id="pauseBtn" disabled>⏸ Pause</button>
   </div>
   <div id="map"></div>
   <div id="legend" class="legend" style="position: absolute; right: 10px; bottom: 10px; z-index:1000;"></div>
+  <div id="timestamp" class="timestamp-overlay">-</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
@@ -35,7 +48,6 @@
     "Ekstrem": "#b84dff"
   };
 
-  // Nama file
   const GEOJSON_FILE = 'Batas_SO_kel.json';
   const FORECAST_FILE = 'prakiraan_kabupaten_full3jam.json';
 
@@ -47,6 +59,8 @@
   let geojsonLayer;
   let forecastData = null;
   let timestamps = [];
+  let playInterval = null;
+  let currentIndex = 0;
 
   function normName(name){
     return (name||'').trim().toLowerCase();
@@ -59,26 +73,26 @@
   ]).then(([forecast, geojson])=>{
     forecastData = forecast;
 
-    // Ambil daftar waktu dari salah satu kabupaten
     const firstKey = Object.keys(forecastData)[0];
     timestamps = Object.keys(forecastData[firstKey]);
     const timeSelect = document.getElementById('timeSelect');
-    timestamps.forEach(t=>{
+    timestamps.forEach((t,i)=>{
       const opt = document.createElement('option');
       opt.value = t;
       opt.textContent = t;
       timeSelect.appendChild(opt);
     });
 
-    // Render awal
     addGeojsonLayer(geojson, timestamps[0]);
 
-    // Event ganti waktu
     timeSelect.addEventListener('change', (e)=>{
+      currentIndex = timestamps.indexOf(e.target.value);
       updateChoropleth(e.target.value);
     });
 
-    // Buat legenda
+    document.getElementById('playBtn').addEventListener('click', startPlay);
+    document.getElementById('pauseBtn').addEventListener('click', stopPlay);
+
     drawLegend();
   }).catch(err=>{
     console.error(err);
@@ -87,7 +101,7 @@
 
   function styleFeature(feature, timeKey){
     const props = feature.properties || {};
-    const kabupaten = props.WADMKC; // ambil nama kabupaten dari GeoJSON
+    const kabupaten = props.WADMKC;
     let cuaca = null, suhu = null, hum = null;
 
     const k = Object.keys(forecastData).find(fk => normName(fk) === normName(kabupaten));
@@ -135,14 +149,20 @@
       onEachFeature: onEachFeature
     }).addTo(map);
     map.fitBounds(geojsonLayer.getBounds(), {padding:[20,20]});
+    updateTimestamp(timeKey);
   }
 
   function updateChoropleth(timeKey){
     if(!geojsonLayer) return;
     geojsonLayer.eachLayer(layer=>{
-      const f = layer.feature;
-      layer.setStyle(styleFeature(f, timeKey));
+      layer.setStyle(styleFeature(layer.feature, timeKey));
     });
+    document.getElementById('timeSelect').value = timeKey;
+    updateTimestamp(timeKey);
+  }
+
+  function updateTimestamp(t){
+    document.getElementById('timestamp').textContent = t;
   }
 
   function drawLegend(){
@@ -156,6 +176,24 @@
       item.innerHTML = '<span class="colorbox" style="background:'+col+'"></span> ' + k;
       legendDiv.appendChild(item);
     });
+  }
+
+  function startPlay(){
+    if(playInterval) return;
+    document.getElementById('playBtn').disabled = true;
+    document.getElementById('pauseBtn').disabled = false;
+
+    playInterval = setInterval(()=>{
+      currentIndex = (currentIndex + 1) % timestamps.length;
+      updateChoropleth(timestamps[currentIndex]);
+    }, 2000);
+  }
+
+  function stopPlay(){
+    clearInterval(playInterval);
+    playInterval = null;
+    document.getElementById('playBtn').disabled = false;
+    document.getElementById('pauseBtn').disabled = true;
   }
   </script>
 </body>
