@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="utf-8"/>
-  <title>Peta Prakiraan Hujan per Kabupaten</title>
+  <title>Peta Prakiraan Hujan per Desa (ADM4)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
@@ -14,7 +14,7 @@
     .colorbox { width:18px; height:14px; display:inline-block; border:1px solid #444; }
     .timestamp-overlay {
       position:absolute;
-      top:50px; left:10px;
+      top:10px; left:10px;
       background:rgba(255,255,255,0.8);
       padding:6px 12px;
       border-radius:4px;
@@ -45,7 +45,9 @@
   <script>
   // --- Warna kategori cuaca ---
   const categoryColors = {
-   
+    "Cerah": "#bcd4ff",
+    "Cerah Berawan": "#d6f5d6",
+    "Berawan": "#e8e8e8",
     "Hujan Ringan": "#7be57b",
     "Hujan Sedang": "#ffd84d",
     "Hujan Lebat": "#ff9a2e",
@@ -53,8 +55,8 @@
     "Ekstrem": "#b84dff"
   };
 
-  const GEOJSON_FILE = 'Batas_SO_kel.json';
-  const FORECAST_FILE = 'prakiraan_kabupaten_full3jam.json';
+  const GEOJSON_FILE = 'Batas_SO_kel.json';            // batas desa (punya properti KDEPUM)
+  const FORECAST_FILE = 'prakiraan_per_desa.json';     // hasil download per adm4
 
   let map = L.map('map').setView([-7.9, 110.4], 9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -68,10 +70,6 @@
   let currentIndex = 0;
   let playSpeed = 2000; // default 2 detik
 
-  function normName(name){
-    return (name||'').trim().toLowerCase();
-  }
-
   // Load data
   Promise.all([
     fetch(FORECAST_FILE).then(r=>r.json()),
@@ -79,8 +77,12 @@
   ]).then(([forecast, geojson])=>{
     forecastData = forecast;
 
+    // ambil timestamps dari salah satu adm4
     const firstKey = Object.keys(forecastData)[0];
-    timestamps = Object.keys(forecastData[firstKey]);
+    if(firstKey && forecastData[firstKey] && forecastData[firstKey].data){
+      timestamps = forecastData[firstKey].data.map(d => d.local_datetime);
+    }
+
     const timeSelect = document.getElementById('timeSelect');
     timestamps.forEach((t,i)=>{
       const opt = document.createElement('option');
@@ -115,14 +117,12 @@
 
   function styleFeature(feature, timeKey){
     const props = feature.properties || {};
-    const kabupaten = props.WADMKK;
-    let cuaca = null, suhu = null, hum = null;
+    const kode = props.KDEPUM;
+    let cuaca = null;
 
-    const k = Object.keys(forecastData).find(fk => normName(fk) === normName(kabupaten));
-    if(k && forecastData[k] && forecastData[k][timeKey]){
-      cuaca = forecastData[k][timeKey].cuaca;
-      suhu = forecastData[k][timeKey].suhu;
-      hum = forecastData[k][timeKey].hum;
+    if(forecastData[kode]){
+      const slot = forecastData[kode].data.find(d => d.local_datetime === timeKey);
+      if(slot){ cuaca = slot.weather_desc; }
     }
 
     const color = categoryColors[cuaca] || '#cccccc';
@@ -138,19 +138,28 @@
     layer.on({
       click: function(e){
         const props = feature.properties || {};
-        const kabupaten = props.WADMKK;
+        const kode = props.KDEPUM;
         const t = document.getElementById('timeSelect').value;
-        let html = '<strong>'+kabupaten+'</strong><br/>';
-        const k = Object.keys(forecastData).find(fk => normName(fk) === normName(kabupaten));
-        if(k && forecastData[k] && forecastData[k][t]){
-          const info = forecastData[k][t];
-          html += 'Waktu: ' + t + '<br>';
-          html += 'Cuaca: ' + info.cuaca + '<br>';
-          html += 'Suhu: ' + info.suhu + ' °C<br>';
-          html += 'Hum: ' + info.hum + '<br>';
+        let html = "<strong>Kode: "+kode+"</strong><br/>";
+
+        if(forecastData[kode]){
+          const lokasi = forecastData[kode].lokasi || {};
+          html += (lokasi.desa || "-") + ", " + (lokasi.kecamatan || "-") + "<br/>";
+          html += (lokasi.kabupaten || "-") + "<br/>";
+
+          const slot = forecastData[kode].data.find(d => d.local_datetime === t);
+          if(slot){
+            html += "Waktu: " + t + "<br>";
+            html += "Cuaca: " + slot.weather_desc + "<br>";
+            html += "Suhu: " + slot.t + " °C<br>";
+            html += "Hum: " + slot.hu + "<br>";
+          } else {
+            html += "Data prakiraan tidak tersedia.";
+          }
         } else {
-          html += 'Data prakiraan tidak tersedia.';
+          html += "Data prakiraan tidak tersedia.";
         }
+
         layer.bindPopup(html).openPopup();
       }
     });
