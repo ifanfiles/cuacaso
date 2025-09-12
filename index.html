@@ -115,7 +115,7 @@
 
   function styleFeature(feature, timeKey){
     const props = feature.properties || {};
-    const kabupaten = props.WADMKC;
+    const kabupaten = props.WADMKD;
     let cuaca = null, suhu = null, hum = null;
 
     const k = Object.keys(forecastData).find(fk => normName(fk) === normName(kabupaten));
