@@ -182,7 +182,7 @@ fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
   fillOpacity:0,       // transparan penuh
   fillColor:'transparent'
 };
-
+  }
   function onEachFeature(feature, layer){
     layer.on('click', function(){
       const kode = feature.properties.KDEPUM;
