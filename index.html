@@ -1,211 +1,162 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Radar + Prakiraan Kabupaten</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <meta charset="utf-8"/>
+  <title>Peta Prakiraan Hujan per Kabupaten</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
-    body { margin:0; font-family: Arial, sans-serif; background:#f4f6f9; display:flex; }
-    #map { height: 100vh; width: 70%; }
-
-    #sidebar {
-      width: 30%; height: 100vh;
-      background: #fff; padding: 12px; overflow:auto;
-      box-shadow: -2px 0 8px rgba(0,0,0,0.1);
-    }
-
-    h2 { margin: 0 0 10px; font-size: 18px; }
-    label { font-size: 13px; display:block; margin: 8px 0 4px; }
-
-    table { width:100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
-    th { background: #f0f3f7; }
-
-    .legend {
-      margin-top: 12px; font-size: 12px;
-    }
-    .legend div { display:flex; align-items:center; margin:2px 0; }
-    .legend span {
-      width: 18px; height: 12px; margin-right: 6px;
-      display:inline-block;
-    }
-
-    .controls { margin:10px 0; display:flex; gap:6px; }
-    .controls button {
-      padding: 6px 10px; border:none; border-radius:6px;
-      background:#2c7be5; color:#fff; font-size:12px; cursor:pointer;
-    }
-    .controls button:hover { background:#1a5fb4; }
+    body { margin:0; font-family: Arial, sans-serif; }
+    #map { height: 86vh; }
+    .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
+    .legend { background:#fff; padding:8px; line-height:1.6; }
+    .legend .item { display:flex; align-items:center; gap:8px; }
+    .colorbox { width:18px; height:14px; display:inline-block; border:1px solid #444; }
   </style>
 </head>
 <body>
-  <div id="map"></div>
-  <div id="sidebar">
-    <h2>Prakiraan Kabupaten</h2>
-    <label>Pilih Slot Waktu:</label>
-    <select id="timeSelect"></select>
-
-    <div class="controls">
-      <button id="prevBtn">⏪ Prev</button>
-      <button id="playBtn">▶ Play</button>
-      <button id="stopBtn">⏹ Stop</button>
-      <button id="nextBtn">⏩ Next</button>
-    </div>
-
-    <label>Pilih Kabupaten:</label>
-    <select id="kabSelect"></select>
-
-    <table>
-      <thead>
-        <tr><th>Waktu</th><th>Cuaca</th><th>Suhu</th><th>Kelembapan</th></tr>
-      </thead>
-      <tbody id="forecastBody">
-        <tr><td colspan="4">Belum ada data</td></tr>
-      </tbody>
-    </table>
-
-    <div class="legend">
-      <strong>Keterangan Warna</strong>
-      <div><span style="background:#87CEEB"></span> Cerah</div>
-      <div><span style="background:#90EE90"></span> Cerah Berawan / Berawan</div>
-      <div><span style="background:#FFD700"></span> Hujan Ringan</div>
-      <div><span style="background:#FFA500"></span> Hujan Sedang</div>
-      <div><span style="background:#FF0000"></span> Hujan Lebat</div>
-    </div>
+  <div class="controls">
+    <label>Waktu: <select id="timeSelect"></select></label>
   </div>
+  <div id="map"></div>
+  <div id="legend" class="legend" style="position: absolute; right: 10px; bottom: 10px; z-index:1000;"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([-7.7, 110.3], 8);
+  // --- Warna kategori cuaca ---
+  const categoryColors = {
+    "Cerah": "#bcd4ff",
+    "Cerah Berawan": "#d6f5d6",
+    "Berawan": "#e8e8e8",
+    "Hujan Ringan": "#7be57b",
+    "Hujan Sedang": "#ffd84d",
+    "Hujan Lebat": "#ff9a2e",
+    "Hujan Sangat Lebat": "#ff4d4d",
+    "Ekstrem": "#b84dff"
+  };
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
+  // Nama file
+  const GEOJSON_FILE = 'Batas_SO_kel.json';
+  const FORECAST_FILE = 'prakiraan_kabupaten_full3jam.json';
 
-    let RAW = null;
-    let geojsonLayer = null;
-    let currentSlot = null;
-    let slots = [];
-    let playTimer = null;
+  let map = L.map('map').setView([-7.9, 110.4], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OSM'
+  }).addTo(map);
 
-    function colorByWeather(cuaca) {
-      if(!cuaca) return "#ccc";
-      if(cuaca.includes("Lebat")) return "#FF0000";
-      if(cuaca.includes("Sedang")) return "#FFA500";
-      if(cuaca.includes("Ringan")) return "#FFD700";
-      if(cuaca.includes("Berawan")) return "#90EE90";
-      if(cuaca.includes("Cerah")) return "#87CEEB";
-      return "#ccc";
+  let geojsonLayer;
+  let forecastData = null;
+  let timestamps = [];
+
+  function normName(name){
+    return (name||'').trim().toLowerCase();
+  }
+
+  // Load data
+  Promise.all([
+    fetch(FORECAST_FILE).then(r=>r.json()),
+    fetch(GEOJSON_FILE).then(r=>r.json())
+  ]).then(([forecast, geojson])=>{
+    forecastData = forecast;
+
+    // Ambil daftar waktu dari salah satu kabupaten
+    const firstKey = Object.keys(forecastData)[0];
+    timestamps = Object.keys(forecastData[firstKey]);
+    const timeSelect = document.getElementById('timeSelect');
+    timestamps.forEach(t=>{
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      timeSelect.appendChild(opt);
+    });
+
+    // Render awal
+    addGeojsonLayer(geojson, timestamps[0]);
+
+    // Event ganti waktu
+    timeSelect.addEventListener('change', (e)=>{
+      updateChoropleth(e.target.value);
+    });
+
+    // Buat legenda
+    drawLegend();
+  }).catch(err=>{
+    console.error(err);
+    alert('Gagal memuat data. Pastikan file JSON & GeoJSON ada di folder yang sama.');
+  });
+
+  function styleFeature(feature, timeKey){
+    const props = feature.properties || {};
+    const kabupaten = props.WADMKC; // ambil nama kabupaten dari GeoJSON
+    let cuaca = null, suhu = null, hum = null;
+
+    const k = Object.keys(forecastData).find(fk => normName(fk) === normName(kabupaten));
+    if(k && forecastData[k] && forecastData[k][timeKey]){
+      cuaca = forecastData[k][timeKey].cuaca;
+      suhu = forecastData[k][timeKey].suhu;
+      hum = forecastData[k][timeKey].hum;
     }
 
-    function renderTable(kab) {
-      const tbody = document.getElementById("forecastBody");
-      tbody.innerHTML = "";
-      if(!RAW[kab]) {
-        tbody.innerHTML = "<tr><td colspan='4'>Tidak ada data</td></tr>";
-        return;
-      }
-      Object.entries(RAW[kab]).forEach(([time, val]) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${time}</td><td>${val.cuaca}</td><td>${val.suhu}</td><td>${val.hum}</td>`;
-        tbody.appendChild(tr);
-      });
-    }
+    const color = categoryColors[cuaca] || '#cccccc';
+    return {
+      color: '#444',
+      weight: 0.6,
+      fillColor: color,
+      fillOpacity: 0.8
+    };
+  }
 
-    function updateMap(slot) {
-      document.getElementById("timeSelect").value = slot;
-      geojsonLayer.eachLayer(layer => {
-        const kab = layer.feature.properties.WADMKK;
-        const data = RAW[kab] && RAW[kab][slot];
-        const fillColor = data ? colorByWeather(data.cuaca) : "#ccc";
-        layer.setStyle({ fillColor, fillOpacity: 0.6, color: "#333", weight: 1 });
-      });
-    }
-
-    async function loadForecast() {
-      const res = await fetch("prakiraan_kabupaten_full3jam.json");
-      RAW = await res.json();
-
-      const kabSelect = document.getElementById("kabSelect");
-      kabSelect.innerHTML = "";
-      Object.keys(RAW).sort().forEach(k => {
-        const opt = document.createElement("option");
-        opt.value = k; opt.textContent = k;
-        kabSelect.appendChild(opt);
-      });
-      kabSelect.onchange = () => renderTable(kabSelect.value);
-
-      slots = Object.keys(Object.values(RAW)[0]);
-      const timeSelect = document.getElementById("timeSelect");
-      timeSelect.innerHTML = "";
-      slots.forEach(s => {
-        const opt = document.createElement("option");
-        opt.value = s; opt.textContent = s;
-        timeSelect.appendChild(opt);
-      });
-      timeSelect.onchange = () => {
-        currentSlot = timeSelect.value;
-        updateMap(currentSlot);
-      };
-
-      currentSlot = slots[0];
-      timeSelect.value = currentSlot;
-
-      renderTable(Object.keys(RAW)[0]);
-
-      const geoRes = await fetch("batas_wilayah.geojson");
-      const geoData = await geoRes.json();
-      geojsonLayer = L.geoJSON(geoData, {
-        style: () => ({ color: "#333", weight: 1, fillOpacity: 0.6 }),
-        onEachFeature: (feature, layer) => {
-          const kab = feature.properties.WADMKK;
-          layer.bindTooltip(kab);
-          layer.on("click", () => {
-            kabSelect.value = kab;
-            renderTable(kab);
-          });
+  function onEachFeature(feature, layer){
+    layer.on({
+      click: function(e){
+        const props = feature.properties || {};
+        const kabupaten = props.WADMKC;
+        const t = document.getElementById('timeSelect').value;
+        let html = '<strong>'+kabupaten+'</strong><br/>';
+        const k = Object.keys(forecastData).find(fk => normName(fk) === normName(kabupaten));
+        if(k && forecastData[k] && forecastData[k][t]){
+          const info = forecastData[k][t];
+          html += 'Waktu: ' + t + '<br>';
+          html += 'Cuaca: ' + info.cuaca + '<br>';
+          html += 'Suhu: ' + info.suhu + ' °C<br>';
+          html += 'Hum: ' + info.hum + '<br>';
+        } else {
+          html += 'Data prakiraan tidak tersedia.';
         }
-      }).addTo(map);
+        layer.bindPopup(html).openPopup();
+      }
+    });
+  }
 
-      updateMap(currentSlot);
-      map.fitBounds(geojsonLayer.getBounds());
-    }
+  function addGeojsonLayer(geojson, timeKey){
+    if(geojsonLayer) map.removeLayer(geojsonLayer);
+    geojsonLayer = L.geoJson(geojson, {
+      style: f => styleFeature(f, timeKey),
+      onEachFeature: onEachFeature
+    }).addTo(map);
+    map.fitBounds(geojsonLayer.getBounds(), {padding:[20,20]});
+  }
 
-    // kontrol animasi
-    document.getElementById("playBtn").onclick = () => {
-      if(playTimer) return;
-      playTimer = setInterval(() => {
-        let idx = slots.indexOf(currentSlot);
-        idx = (idx + 1) % slots.length;
-        currentSlot = slots[idx];
-        updateMap(currentSlot);
-      }, 1500);
-    };
+  function updateChoropleth(timeKey){
+    if(!geojsonLayer) return;
+    geojsonLayer.eachLayer(layer=>{
+      const f = layer.feature;
+      layer.setStyle(styleFeature(f, timeKey));
+    });
+  }
 
-    document.getElementById("stopBtn").onclick = () => {
-      clearInterval(playTimer);
-      playTimer = null;
-    };
-
-    document.getElementById("nextBtn").onclick = () => {
-      clearInterval(playTimer);
-      playTimer = null;
-      let idx = slots.indexOf(currentSlot);
-      idx = (idx + 1) % slots.length;
-      currentSlot = slots[idx];
-      updateMap(currentSlot);
-    };
-
-    document.getElementById("prevBtn").onclick = () => {
-      clearInterval(playTimer);
-      playTimer = null;
-      let idx = slots.indexOf(currentSlot);
-      idx = (idx - 1 + slots.length) % slots.length;
-      currentSlot = slots[idx];
-      updateMap(currentSlot);
-    };
-
-    loadForecast();
+  function drawLegend(){
+    const legendDiv = document.getElementById('legend');
+    legendDiv.innerHTML = '<strong>Legenda</strong><br/>';
+    const order = ["Cerah","Cerah Berawan","Berawan","Hujan Ringan","Hujan Sedang","Hujan Lebat","Hujan Sangat Lebat","Ekstrem"];
+    order.forEach(k=>{
+      const col = categoryColors[k] || '#cccccc';
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.innerHTML = '<span class="colorbox" style="background:'+col+'"></span> ' + k;
+      legendDiv.appendChild(item);
+    });
+  }
   </script>
 </body>
 </html>
