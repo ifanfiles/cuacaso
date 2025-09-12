@@ -8,17 +8,17 @@
   <style>
     body { margin:0; font-family: Arial, sans-serif; }
     #map { height: 86vh; }
-    .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); display:flex; gap:10px; align-items:center;}
+    .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
     .legend { background:#fff; padding:8px; line-height:1.6; }
     .legend .item { display:flex; align-items:center; gap:8px; }
     .colorbox { width:18px; height:14px; display:inline-block; border:1px solid #444; }
     .timestamp-overlay {
       position:absolute;
       top:10px; left:10px;
-      background:rgba(255,255,255,0.8);
+      background:rgba(255,255,255,0.9);
       padding:6px 12px;
       border-radius:4px;
-      font-size:18px;
+      font-size:16px;
       font-weight:bold;
       z-index:1000;
     }
@@ -27,9 +27,11 @@
 <body>
   <div class="controls">
     <label>Waktu: <select id="timeSelect"></select></label>
+    <button id="prevBtn">◀ Prev</button>
     <button id="playBtn">▶ Play</button>
     <button id="pauseBtn" disabled>⏸ Pause</button>
-    <label>Kecepatan: 
+    <button id="nextBtn">Next ▶</button>
+    <label>Kecepatan:
       <select id="speedSelect">
         <option value="1000">1 detik</option>
         <option value="2000" selected>2 detik</option>
@@ -37,13 +39,14 @@
       </select>
     </label>
   </div>
+
   <div id="map"></div>
   <div id="legend" class="legend" style="position: absolute; right: 10px; bottom: 10px; z-index:1000;"></div>
   <div id="timestamp" class="timestamp-overlay">-</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-  // --- Warna kategori cuaca ---
+  // Warna kategori cuaca
   const categoryColors = {
     "Cerah": "#bcd4ff",
     "Cerah Berawan": "#d6f5d6",
@@ -55,8 +58,8 @@
     "Ekstrem": "#b84dff"
   };
 
-  const GEOJSON_FILE = 'Batas_SO_kel.json';            // batas desa (punya properti KDEPUM)
-  const FORECAST_FILE = 'prakiraan_per_desa.json';     // hasil download per adm4
+  const GEOJSON_FILE = 'Batas_SO_kel.json';
+  const FORECAST_FILE = 'prakiraan_per_desa.json';
 
   let map = L.map('map').setView([-7.9, 110.4], 9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -68,45 +71,80 @@
   let timestamps = [];
   let playInterval = null;
   let currentIndex = 0;
-  let playSpeed = 2000; // default 2 detik
+  let playSpeed = 2000;
 
-  // Load data
+  // Ambil semua slot prakiraan dari struktur BMKG (data[].cuaca[][])
+  function collectAllSlots(rec){
+    const out = [];
+    if(rec && Array.isArray(rec.data)){
+      rec.data.forEach(d=>{
+        if(d && Array.isArray(d.cuaca)){
+          d.cuaca.forEach(slotArr=>{
+            if(Array.isArray(slotArr)){
+              slotArr.forEach(slot=>{
+                if(slot) out.push(slot);
+              });
+            }
+          });
+        }
+      });
+    }
+    return out;
+  }
+
+  // Load forecast + geojson
   Promise.all([
-    fetch(FORECAST_FILE).then(r=>r.json()),
-    fetch(GEOJSON_FILE).then(r=>r.json())
-  ]).then(([forecast, geojson])=>{
+    fetch(FORECAST_FILE).then(r => r.json()),
+    fetch(GEOJSON_FILE).then(r => r.json())
+  ]).then(([forecast, geojson]) => {
     forecastData = forecast;
 
-    // ambil timestamps dari salah satu adm4
-    const firstKey = Object.keys(forecastData)[0];
-    if(firstKey && forecastData[firstKey] && forecastData[firstKey].data){
-      timestamps = forecastData[firstKey].data.map(d => d.local_datetime);
-    }
+    // Build union of all timestamps across all adm4
+    const tsSet = new Set();
+    Object.keys(forecastData).forEach(kode=>{
+      collectAllSlots(forecastData[kode]).forEach(slot=>{
+        if(slot.local_datetime) tsSet.add(slot.local_datetime);
+      });
+    });
+
+    timestamps = Array.from(tsSet).sort((a,b)=> new Date(a) - new Date(b));
 
     const timeSelect = document.getElementById('timeSelect');
-    timestamps.forEach((t,i)=>{
+    if(timestamps.length === 0){
+      alert('Tidak ditemukan slot waktu di data prakiraan.');
+      return;
+    }
+    timestamps.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t;
       opt.textContent = t;
       timeSelect.appendChild(opt);
     });
 
-    addGeojsonLayer(geojson, timestamps[0]);
+    currentIndex = 0;
+    addGeojsonLayer(geojson, timestamps[currentIndex]);
 
+    // event listeners
     timeSelect.addEventListener('change', (e)=>{
-      currentIndex = timestamps.indexOf(e.target.value);
-      updateChoropleth(e.target.value);
+      const val = e.target.value;
+      currentIndex = timestamps.indexOf(val);
+      updateChoropleth(val);
     });
-
     document.getElementById('playBtn').addEventListener('click', startPlay);
     document.getElementById('pauseBtn').addEventListener('click', stopPlay);
-
+    document.getElementById('prevBtn').addEventListener('click', ()=>{
+      stopPlay();
+      currentIndex = (currentIndex - 1 + timestamps.length) % timestamps.length;
+      updateChoropleth(timestamps[currentIndex]);
+    });
+    document.getElementById('nextBtn').addEventListener('click', ()=>{
+      stopPlay();
+      currentIndex = (currentIndex + 1) % timestamps.length;
+      updateChoropleth(timestamps[currentIndex]);
+    });
     document.getElementById('speedSelect').addEventListener('change', (e)=>{
       playSpeed = parseInt(e.target.value);
-      if(playInterval){ // restart interval dengan speed baru
-        stopPlay();
-        startPlay();
-      }
+      if(playInterval){ stopPlay(); startPlay(); }
     });
 
     drawLegend();
@@ -116,52 +154,46 @@
   });
 
   function styleFeature(feature, timeKey){
-    const props = feature.properties || {};
-    const kode = props.KDEPUM;
+    const kode = feature.properties.KDEPUM;
     let cuaca = null;
-
     if(forecastData[kode]){
-      const slot = forecastData[kode].data.find(d => d.local_datetime === timeKey);
-      if(slot){ cuaca = slot.weather_desc; }
+      collectAllSlots(forecastData[kode]).forEach(slot=>{
+        if(slot.local_datetime === timeKey){
+          cuaca = slot.weather_desc;
+        }
+      });
     }
-
     const color = categoryColors[cuaca] || '#cccccc';
-    return {
-      color: '#444',
-      weight: 0.6,
-      fillColor: color,
-      fillOpacity: 0.8
-    };
+    return { color:'#444', weight:0.6, fillColor:color, fillOpacity:0.85 };
   }
 
   function onEachFeature(feature, layer){
-    layer.on({
-      click: function(e){
-        const props = feature.properties || {};
-        const kode = props.KDEPUM;
-        const t = document.getElementById('timeSelect').value;
-        let html = "<strong>Kode: "+kode+"</strong><br/>";
+    layer.on('click', function(){
+      const kode = feature.properties.KDEPUM;
+      const t = document.getElementById('timeSelect').value;
+      let html = `<strong>Kode: ${kode}</strong><br/>`;
 
-        if(forecastData[kode]){
-          const lokasi = forecastData[kode].lokasi || {};
-          html += (lokasi.desa || "-") + ", " + (lokasi.kecamatan || "-") + "<br/>";
-          html += (lokasi.kabupaten || "-") + "<br/>";
+      if(forecastData[kode]){
+        const lokasi = forecastData[kode].lokasi || {};
+        html += `${lokasi.desa||'-'}, ${lokasi.kecamatan||'-'}<br/>${lokasi.kotkab||'-'}<br/>`;
 
-          const slot = forecastData[kode].data.find(d => d.local_datetime === t);
-          if(slot){
-            html += "Waktu: " + t + "<br>";
-            html += "Cuaca: " + slot.weather_desc + "<br>";
-            html += "Suhu: " + slot.t + " °C<br>";
-            html += "Hum: " + slot.hu + "<br>";
-          } else {
-            html += "Data prakiraan tidak tersedia.";
-          }
+        let slotFound = null;
+        collectAllSlots(forecastData[kode]).forEach(slot=>{
+          if(slot.local_datetime === t) slotFound = slot;
+        });
+
+        if(slotFound){
+          html += `Waktu: ${t}<br/>`;
+          html += `Cuaca: ${slotFound.weather_desc}<br/>`;
+          html += `Suhu: ${slotFound.t} °C<br/>`;
+          html += `Hum: ${slotFound.hu}<br/>`;
         } else {
-          html += "Data prakiraan tidak tersedia.";
+          html += 'Data prakiraan tidak tersedia.';
         }
-
-        layer.bindPopup(html).openPopup();
+      } else {
+        html += 'Data prakiraan tidak tersedia.';
       }
+      layer.bindPopup(html).openPopup();
     });
   }
 
@@ -173,6 +205,7 @@
     }).addTo(map);
     map.fitBounds(geojsonLayer.getBounds(), {padding:[20,20]});
     updateTimestamp(timeKey);
+    document.getElementById('timeSelect').value = timeKey;
   }
 
   function updateChoropleth(timeKey){
@@ -185,7 +218,7 @@
   }
 
   function updateTimestamp(t){
-    document.getElementById('timestamp').textContent = t;
+    document.getElementById('timestamp').textContent = t || '-';
   }
 
   function drawLegend(){
@@ -196,7 +229,7 @@
       const col = categoryColors[k] || '#cccccc';
       const item = document.createElement('div');
       item.className = 'item';
-      item.innerHTML = '<span class="colorbox" style="background:'+col+'"></span> ' + k;
+      item.innerHTML = `<span class="colorbox" style="background:${col}"></span> ${k}`;
       legendDiv.appendChild(item);
     });
   }
@@ -205,7 +238,6 @@
     if(playInterval) return;
     document.getElementById('playBtn').disabled = true;
     document.getElementById('pauseBtn').disabled = false;
-
     playInterval = setInterval(()=>{
       currentIndex = (currentIndex + 1) % timestamps.length;
       updateChoropleth(timestamps[currentIndex]);
