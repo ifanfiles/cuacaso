@@ -6,27 +6,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
-    /* ==== CSS untuk tampilan halaman ==== */
     body { margin:0; font-family: Arial, sans-serif; }
-    #map { height: 86vh; } /* peta tingginya 86% dari layar */
-
-    /* Panel kontrol di atas peta */
-    .controls { 
-      padding:8px; 
-      background:#fff; 
-      box-shadow:0 1px 4px rgba(0,0,0,0.3); 
-      display:flex; 
-      gap:10px; 
-      align-items:center; 
-      flex-wrap:wrap;
-    }
-
-    /* Kotak legenda */
+    #map { height: 86vh; }
+    .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
     .legend { background:#fff; padding:8px; line-height:1.6; }
     .legend .item { display:flex; align-items:center; gap:8px; }
     .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #999; }
-
-    /* Overlay timestamp (slot waktu prakiraan) di pojok kiri atas */
     .timestamp-overlay {
       position:absolute;
       top:10px; left:10px;
@@ -37,8 +22,6 @@
       font-weight:bold;
       z-index:1000;
     }
-
-    /* Label nama kabupaten (tooltip permanen di tengah polygon kabupaten) */
     .kab-label {
       background: transparent !important;
       border: none !important;
@@ -51,8 +34,6 @@
   </style>
 </head>
 <body>
-
-  <!-- ==== Panel kontrol waktu, play/pause, kecepatan animasi ==== -->
   <div class="controls">
     <label>Waktu: <select id="timeSelect"></select></label>
     <button id="prevBtn">◀ Prev</button>
@@ -68,21 +49,12 @@
     </label>
   </div>
 
-  <!-- ==== Elemen peta ==== -->
   <div id="map"></div>
-
-  <!-- ==== Legenda warna cuaca ==== -->
   <div id="legend" class="legend" style="position: absolute; right: 10px; bottom: 10px; z-index:1000;"></div>
-
-  <!-- ==== Overlay timestamp (menampilkan slot waktu aktif) ==== -->
   <div id="timestamp" class="timestamp-overlay">-</div>
 
-  <!-- ==== Leaflet JS Library ==== -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- ==== Script utama aplikasi ==== -->
   <script>
-  // ===== 1. Definisi warna kategori cuaca =====
   const categoryColors = {
     "Cerah": "#ffffff",
     "Cerah Berawan": "#d9f0ff",
@@ -94,40 +66,34 @@
     "Ekstrem": "#b84dff"
   };
 
-  // ===== 2. File sumber data =====
-  const GEOJSON_FILE = "Batas_SO_kec.json";           // batas wilayah per kecamatan
-  const FORECAST_FILE = "prakiraan_per_kecamatan.json"; // JSON hasil agregasi prakiraan cuaca per kecamatan
+  const GEOJSON_FILE = "Batas_SO_kec.json";
+  const FORECAST_FILE = "prakiraan_per_kecamatan.json";
 
-  // ===== 3. Inisialisasi peta Leaflet =====
   let map = L.map('map').setView([-7.5, 110.2], 9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OSM'
   }).addTo(map);
 
-  // ===== 4. Variabel global =====
-  let geojsonLayer;   // layer polygon kecamatan
-  let forecastData = null;  // data prakiraan
-  let timestamps = [];      // daftar slot waktu prakiraan
-  let playInterval = null;  // untuk animasi play/pause
-  let currentIndex = 0;     // index slot waktu aktif
-  let playSpeed = 2000;     // kecepatan animasi (default 2 detik)
-  let iconLayer;            // layer untuk ikon cuaca (saat ini dikomentari)
+  let geojsonLayer;
+  let forecastData = null;
+  let timestamps = [];
+  let playInterval = null;
+  let currentIndex = 0;
+  let playSpeed = 2000;
+  let iconLayer; // <<== tambahkan untuk ikon
 
-  // ===== 5. Load data prakiraan & geojson =====
   Promise.all([
     fetch(FORECAST_FILE).then(r => r.json()),
     fetch(GEOJSON_FILE).then(r => r.json())
   ]).then(([forecast, geojson]) => {
     forecastData = forecast;
 
-    // Ambil semua slot waktu dari JSON prakiraan
     const tsSet = new Set();
     Object.values(forecastData).forEach(perKec=>{
       Object.keys(perKec).forEach(t=> tsSet.add(t));
     });
     timestamps = Array.from(tsSet).sort((a,b)=> new Date(a) - new Date(b));
 
-    // Isi dropdown pilihan waktu
     const timeSelect = document.getElementById('timeSelect');
     if(timestamps.length === 0){
       alert('Tidak ada slot waktu di data prakiraan.');
@@ -140,11 +106,9 @@
       timeSelect.appendChild(opt);
     });
 
-    // Tampilkan layer kecamatan pertama kali
     currentIndex = 0;
     addGeojsonLayer(geojson, timestamps[currentIndex]);
 
-    // Tambah layer batas kabupaten (outline tebal + label nama kabupaten)
     fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
       let kabupatenLayer = L.geoJson(kabGeo, {
         style: { color: "black", weight: 2.5, fillOpacity: 0 },
@@ -161,7 +125,6 @@
       kabupatenLayer.bringToFront();
     });
 
-    // Event listeners untuk kontrol
     timeSelect.addEventListener('change', e=>{
       const val = e.target.value;
       currentIndex = timestamps.indexOf(val);
@@ -184,12 +147,11 @@
       if(playInterval){ stopPlay(); startPlay(); }
     });
 
-    drawLegend(); // gambar legenda warna cuaca
+    drawLegend();
   });
 
-  // ===== 6. Style polygon kecamatan sesuai cuaca =====
   function styleFeature(feature, timeKey){
-    const kec = feature.properties.WADMKC; // nama kecamatan
+    const kec = feature.properties.WADMKC;
     let cuaca = null;
     if(forecastData[kec] && forecastData[kec][timeKey]){
       cuaca = forecastData[kec][timeKey].cuaca;
@@ -198,7 +160,6 @@
     return { color:'#444', weight:0.8, fillColor:color, fillOpacity:0.8 };
   }
 
-  // ===== 7. Popup informasi saat klik polygon =====
   function onEachFeature(feature, layer){
     layer.on('click', ()=>{
       const kec = feature.properties.WADMKC;
@@ -218,18 +179,16 @@
     });
   }
 
-  // ===== 8. Tambah layer GeoJSON ke peta =====
   function addGeojsonLayer(geojson, timeKey){
     if(geojsonLayer) map.removeLayer(geojsonLayer);
-    if(iconLayer) map.removeLayer(iconLayer); // hapus layer ikon lama
+    if(iconLayer) map.removeLayer(iconLayer);
 
     geojsonLayer = L.geoJson(geojson, {
       style: f=> styleFeature(f, timeKey),
       onEachFeature: onEachFeature
     }).addTo(map);
 
-    // --- Bagian ikon prakiraan cuaca (sekarang masih aktif) ---
-    // kalau tidak mau muncul → blok ini bisa dikomentari
+    // Tambahkan ikon prakiraan cuaca
     iconLayer = L.layerGroup();
     geojsonLayer.eachLayer(layer=>{
       const kec = layer.feature.properties.WADMKC;
@@ -252,15 +211,13 @@
     document.getElementById('timeSelect').value = timeKey;
   }
 
-  // ===== 9. Update warna polygon & ikon saat ganti waktu =====
   function updateChoropleth(timeKey){
     if(!geojsonLayer) return;
     geojsonLayer.eachLayer(layer=>{
       layer.setStyle(styleFeature(layer.feature, timeKey));
     });
-
-    /*
-    // --- Bagian update ikon cuaca (sudah dikomentari agar tidak tampil) ---
+/*
+    // Update ikon prakiraan cuaca
     if(iconLayer) map.removeLayer(iconLayer);
     iconLayer = L.layerGroup();
     geojsonLayer.eachLayer(layer=>{
@@ -278,18 +235,15 @@
       }
     });
     iconLayer.addTo(map);
-    */
-
+*/
     document.getElementById('timeSelect').value = timeKey;
     updateTimestamp(timeKey);
   }
 
-  // ===== 10. Update timestamp overlay =====
   function updateTimestamp(t){
     document.getElementById('timestamp').textContent = t || '-';
   }
 
-  // ===== 11. Gambar legenda warna prakiraan =====
   function drawLegend(){
     const legendDiv = document.getElementById('legend');
     legendDiv.innerHTML = '<strong>Legenda</strong><br/>';
@@ -303,7 +257,6 @@
     });
   }
 
-  // ===== 12. Kontrol animasi play/pause =====
   function startPlay(){
     if(playInterval) return;
     document.getElementById('playBtn').disabled = true;
