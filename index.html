@@ -23,13 +23,13 @@
       z-index:1000;
     }
     .kab-label {
-      background: transparent !important;  /* hilangkan kotak putih */
+      background: transparent !important;
       border: none !important;
       box-shadow: none !important;
       font-size: 14px;
       font-weight: bold;
       color: black;
-      text-shadow: 1px 1px 2px white; /* biar tetap terbaca di atas warna peta */
+      text-shadow: 1px 1px 2px white;
     }
   </style>
 </head>
@@ -55,7 +55,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-  // Warna kategori cuaca
   const categoryColors = {
     "Cerah": "#ffffff",
     "Cerah Berawan": "#d9f0ff",
@@ -67,8 +66,8 @@
     "Ekstrem": "#b84dff"
   };
 
-  const GEOJSON_FILE = "Batas_SO_kel.json";          // batas kecamatan
-  const FORECAST_FILE = "prakiraan_per_kecamatan.json"; // hasil agregasi JSON
+  const GEOJSON_FILE = "Batas_SO_kel.json";
+  const FORECAST_FILE = "prakiraan_per_kecamatan.json";
 
   let map = L.map('map').setView([-7.5, 110.2], 9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -81,15 +80,14 @@
   let playInterval = null;
   let currentIndex = 0;
   let playSpeed = 2000;
+  let iconLayer; // <<== tambahkan untuk ikon
 
-  // Load forecast + geojson
   Promise.all([
     fetch(FORECAST_FILE).then(r => r.json()),
     fetch(GEOJSON_FILE).then(r => r.json())
   ]).then(([forecast, geojson]) => {
     forecastData = forecast;
 
-    // Ambil semua slot waktu dari JSON prakiraan
     const tsSet = new Set();
     Object.values(forecastData).forEach(perKec=>{
       Object.keys(perKec).forEach(t=> tsSet.add(t));
@@ -111,27 +109,22 @@
     currentIndex = 0;
     addGeojsonLayer(geojson, timestamps[currentIndex]);
 
-    // Tambah layer batas kabupaten (file hasil dissolve)
-fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
-  let kabupatenLayer = L.geoJson(kabGeo, {
-    style: {
-      color: "black",
-      weight: 2.5,
-      fillOpacity: 0
-    },
-    onEachFeature: function(feature, layer){
-      if(feature.properties && feature.properties.WADMKK){
-        layer.bindTooltip(feature.properties.WADMKK, {
-          permanent: true,   // selalu muncul
-          direction: "center",
-          className: "kab-label"
-        });
-      }
-    }
-  }).addTo(map);
-  kabupatenLayer.bringToFront();
-});
-    // event listeners
+    fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
+      let kabupatenLayer = L.geoJson(kabGeo, {
+        style: { color: "black", weight: 2.5, fillOpacity: 0 },
+        onEachFeature: function(feature, layer){
+          if(feature.properties && feature.properties.WADMKK){
+            layer.bindTooltip(feature.properties.WADMKK, {
+              permanent: true,
+              direction: "center",
+              className: "kab-label"
+            });
+          }
+        }
+      }).addTo(map);
+      kabupatenLayer.bringToFront();
+    });
+
     timeSelect.addEventListener('change', e=>{
       const val = e.target.value;
       currentIndex = timestamps.indexOf(val);
@@ -155,13 +148,10 @@ fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
     });
 
     drawLegend();
-  }).catch(err=>{
-    console.error(err);
-    alert('Gagal memuat data. Pastikan file JSON & GeoJSON ada di folder yang sama.');
   });
 
   function styleFeature(feature, timeKey){
-    const kec = feature.properties.WADMKC; // nama kecamatan
+    const kec = feature.properties.WADMKC;
     let cuaca = null;
     if(forecastData[kec] && forecastData[kec][timeKey]){
       cuaca = forecastData[kec][timeKey].cuaca;
@@ -175,7 +165,6 @@ fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
       const kec = feature.properties.WADMKC;
       const t = document.getElementById('timeSelect').value;
       let html = `<strong>${kec}</strong><br/>`;
-
       if(forecastData[kec] && forecastData[kec][t]){
         const info = forecastData[kec][t];
         html += `Waktu: ${t}<br/>`;
@@ -192,10 +181,31 @@ fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
 
   function addGeojsonLayer(geojson, timeKey){
     if(geojsonLayer) map.removeLayer(geojsonLayer);
+    if(iconLayer) map.removeLayer(iconLayer);
+
     geojsonLayer = L.geoJson(geojson, {
       style: f=> styleFeature(f, timeKey),
       onEachFeature: onEachFeature
     }).addTo(map);
+
+    // Tambahkan ikon prakiraan cuaca
+    iconLayer = L.layerGroup();
+    geojsonLayer.eachLayer(layer=>{
+      const kec = layer.feature.properties.WADMKC;
+      if(forecastData[kec] && forecastData[kec][timeKey]){
+        const info = forecastData[kec][timeKey];
+        if(info.image){
+          const center = layer.getBounds().getCenter();
+          const icon = L.divIcon({
+            html: `<img src="${info.image}" style="width:22px;height:22px;">`,
+            className: ""
+          });
+          L.marker(center, {icon}).addTo(iconLayer);
+        }
+      }
+    });
+    iconLayer.addTo(map);
+
     map.fitBounds(geojsonLayer.getBounds(), {padding:[20,20]});
     updateTimestamp(timeKey);
     document.getElementById('timeSelect').value = timeKey;
@@ -206,6 +216,26 @@ fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
     geojsonLayer.eachLayer(layer=>{
       layer.setStyle(styleFeature(layer.feature, timeKey));
     });
+
+    // Update ikon prakiraan cuaca
+    if(iconLayer) map.removeLayer(iconLayer);
+    iconLayer = L.layerGroup();
+    geojsonLayer.eachLayer(layer=>{
+      const kec = layer.feature.properties.WADMKC;
+      if(forecastData[kec] && forecastData[kec][timeKey]){
+        const info = forecastData[kec][timeKey];
+        if(info.image){
+          const center = layer.getBounds().getCenter();
+          const icon = L.divIcon({
+            html: `<img src="${info.image}" style="width:22px;height:22px;">`,
+            className: ""
+          });
+          L.marker(center, {icon}).addTo(iconLayer);
+        }
+      }
+    });
+    iconLayer.addTo(map);
+
     document.getElementById('timeSelect').value = timeKey;
     updateTimestamp(timeKey);
   }
