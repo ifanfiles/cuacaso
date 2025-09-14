@@ -216,7 +216,7 @@
     geojsonLayer.eachLayer(layer=>{
       layer.setStyle(styleFeature(layer.feature, timeKey));
     });
-
+/*
     // Update ikon prakiraan cuaca
     if(iconLayer) map.removeLayer(iconLayer);
     iconLayer = L.layerGroup();
@@ -235,7 +235,7 @@
       }
     });
     iconLayer.addTo(map);
-
+*/
     document.getElementById('timeSelect').value = timeKey;
     updateTimestamp(timeKey);
   }
