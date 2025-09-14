@@ -169,13 +169,7 @@
       layer.bindPopup(html).openPopup();
     });
 
-    // Label permanen nama kecamatan
-    if(feature.properties && feature.properties.WADMKC){
-      layer.bindTooltip(feature.properties.WADMKC, {
-        permanent: true,
-        direction: "center",
-        className: "kec-label"
-      });
+   
     }
   }
 
