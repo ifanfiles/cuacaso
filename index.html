@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8"/>
+  <title>Peta Prakiraan Hujan per Kecamatan</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; }
+    #map { height: 86vh; }
+    .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .legend { background:#fff; padding:8px; line-height:1.6; }
+    .legend .item { display:flex; align-items:center; gap:8px; }
+    .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #444; }
+    .timestamp-overlay {
+      position:absolute;
+      top:10px; left:10px;
+      background:rgba(255,255,255,0.9);
+      padding:6px 12px;
+      border-radius:4px;
+      font-size:16px;
+      font-weight:bold;
+      z-index:1000;
+    }
+    .kab-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      font-size: 14px;
+      font-weight: bold;
+      color: black;
+      text-shadow: 1px 1px 2px white;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <label>Waktu: <select id="timeSelect"></select></label>
+    <button id="prevBtn">◀ Prev</button>
+    <button id="playBtn">▶ Play</button>
+    <button id="pauseBtn" disabled>⏸ Pause</button>
+    <button id="nextBtn">Next ▶</button>
+    <label>Kecepatan:
+      <select id="speedSelect">
+        <option value="1000">1 detik</option>
+        <option value="2000" selected>2 detik</option>
+        <option value="5000">5 detik</option>
+      </select>
+    </label>
+  </div>
+
+  <div id="map"></div>
+  <div id="legend" class="legend" style="position: absolute; right: 10px; bottom: 10px; z-index:1000;"></div>
+  <div id="timestamp" class="timestamp-overlay">-</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  // Warna kategori cuaca
+  const categoryColors = {
+    "Cerah": "#ffffff",
+    "Cerah Berawan": "#d6f5d6",
+    "Berawan": "#cccccc",
+    "Hujan Ringan": "#7be57b",
+    "Hujan Sedang": "#ffd84d",
+    "Hujan Lebat": "#ff9a2e",
+    "Hujan Sangat Lebat": "#ff4d4d",
+    "Ekstrem": "#b84dff"
+  };
+
+  const GEOJSON_FILE = 'Batas_SO_Kec.json';       // batas kecamatan
+  const FORECAST_FILE = 'prakiraan_per_kecamatan.json'; // hasil agregasi
+
+  let map = L.map('map').setView([-7.9, 110.4], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OSM'
+  }).addTo(map);
+
+  let geojsonLayer;
+  let forecastData = null;
+  let timestamps = [];
+  let playInterval = null;
+  let currentIndex = 0;
+  let playSpeed = 2000;
+
+  function normName(s){ return (s||"").trim().toLowerCase(); }
+
+  // Load forecast + geojson
+  Promise.all([
+    fetch(FORECAST_FILE).then(r => r.json()),
+    fetch(GEOJSON_FILE).then(r => r.json())
+  ]).then(([forecast, geojson]) => {
+    forecastData = forecast;
+
+    // Ambil semua slot waktu
+    const tsSet = new Set();
+    Object.values(forecastData).forEach(kecData=>{
+      Object.keys(kecData).forEach(t => tsSet.add(t));
+    });
+    timestamps = Array.from(tsSet).sort((a,b)=> new Date(a) - new Date(b));
+
+    // isi dropdown waktu
+    const timeSelect = document.getElementById('timeSelect');
+    timestamps.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      timeSelect.appendChild(opt);
+    });
+
+    currentIndex = 0;
+    addGeojsonLayer(geojson, timestamps[currentIndex]);
+
+    // event listeners
+    timeSelect.addEventListener('change', (e)=>{
+      const val = e.target.value;
+      currentIndex = timestamps.indexOf(val);
+      updateChoropleth(val);
+    });
+    document.getElementById('playBtn').addEventListener('click', startPlay);
+    document.getElementById('pauseBtn').addEventListener('click', stopPlay);
+    document.getElementById('prevBtn').addEventListener('click', ()=>{
+      stopPlay();
+      currentIndex = (currentIndex - 1 + timestamps.length) % timestamps.length;
+      updateChoropleth(timestamps[currentIndex]);
+    });
+    document.getElementById('nextBtn').addEventListener('click', ()=>{
+      stopPlay();
+      currentIndex = (currentIndex + 1) % timestamps.length;
+      updateChoropleth(timestamps[currentIndex]);
+    });
+    document.getElementById('speedSelect').addEventListener('change', (e)=>{
+      playSpeed = parseInt(e.target.value);
+      if(playInterval){ stopPlay(); startPlay(); }
+    });
+
+    drawLegend();
+  }).catch(err=>{
+    console.error(err);
+    alert('Gagal memuat data. Pastikan file JSON & GeoJSON ada di folder yang sama.');
+  });
+
+  function styleFeature(feature, timeKey){
+    const kec = feature.properties.WADMKC;
+    let cuaca = null;
+
+    const key = Object.keys(forecastData).find(k => normName(k) === normName(kec));
+    if(key && forecastData[key][timeKey]){
+      cuaca = forecastData[key][timeKey].cuaca;
+    }
+
+    const color = categoryColors[cuaca] || '#cccccc';
+    return { color:'#444', weight:0.6, fillColor:color, fillOpacity:0.85 };
+  }
+
+  function onEachFeature(feature, layer){
+    layer.on('click', function(){
+      const kec = feature.properties.WADMKC;
+      const t = document.getElementById('timeSelect').value;
+      let html = `<strong>${kec}</strong><br/>`;
+
+      const key = Object.keys(forecastData).find(k => normName(k) === normName(kec));
+      if(key && forecastData[key][t]){
+        const info = forecastData[key][t];
+        html += `Waktu: ${t}<br/>`;
+        html += `Cuaca: ${info.cuaca}<br/>`;
+        if(info.image){
+          html += `<img src="${info.image}" width="32"/>`;
+        }
+      } else {
+        html += 'Data prakiraan tidak tersedia.';
+      }
+
+      layer.bindPopup(html).openPopup();
+    });
+  }
+
+  function addGeojsonLayer(geojson, timeKey){
+    if(geojsonLayer) map.removeLayer(geojsonLayer);
+    geojsonLayer = L.geoJson(geojson, {
+      style: f => styleFeature(f, timeKey),
+      onEachFeature: onEachFeature
+    }).addTo(map);
+    map.fitBounds(geojsonLayer.getBounds(), {padding:[20,20]});
+    updateTimestamp(timeKey);
+    document.getElementById('timeSelect').value = timeKey;
+  }
+
+  function updateChoropleth(timeKey){
+    if(!geojsonLayer) return;
+    geojsonLayer.eachLayer(layer=>{
+      layer.setStyle(styleFeature(layer.feature, timeKey));
+    });
+    document.getElementById('timeSelect').value = timeKey;
+    updateTimestamp(timeKey);
+  }
+
+  function updateTimestamp(t){
+    document.getElementById('timestamp').textContent = t || '-';
+  }
+
+  function drawLegend(){
+    const legendDiv = document.getElementById('legend');
+    legendDiv.innerHTML = '<strong>Legenda</strong><br/>';
+    const order = ["Cerah","Cerah Berawan","Berawan","Hujan Ringan","Hujan Sedang","Hujan Lebat","Hujan Sangat Lebat","Ekstrem"];
+    order.forEach(k=>{
+      const col = categoryColors[k] || '#cccccc';
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.innerHTML = `<span class="colorbox" style="background:${col}"></span> ${k}`;
+      legendDiv.appendChild(item);
+    });
+  }
+
+  function startPlay(){
+    if(playInterval) return;
+    document.getElementById('playBtn').disabled = true;
+    document.getElementById('pauseBtn').disabled = false;
+    playInterval = setInterval(()=>{
+      currentIndex = (currentIndex + 1) % timestamps.length;
+      updateChoropleth(timestamps[currentIndex]);
+    }, playSpeed);
+  }
+
+  function stopPlay(){
+    clearInterval(playInterval);
+    playInterval = null;
+    document.getElementById('playBtn').disabled = false;
+    document.getElementById('pauseBtn').disabled = true;
+  }
+  </script>
+</body>
+</html>
