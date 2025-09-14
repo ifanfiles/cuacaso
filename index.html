@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="utf-8"/>
-  <title>Peta Prakiraan Hujan per Kecamatan</title>
+  <title>Peta Prakiraan Cuaca per Kecamatan</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
@@ -11,7 +11,7 @@
     .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
     .legend { background:#fff; padding:8px; line-height:1.6; }
     .legend .item { display:flex; align-items:center; gap:8px; }
-    .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #444; }
+    .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #999; }
     .timestamp-overlay {
       position:absolute;
       top:10px; left:10px;
@@ -22,11 +22,11 @@
       font-weight:bold;
       z-index:1000;
     }
-    .kab-label {
+    .kec-label {
       background: transparent !important;
       border: none !important;
       box-shadow: none !important;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: bold;
       color: black;
       text-shadow: 1px 1px 2px white;
@@ -58,8 +58,8 @@
   // Warna kategori cuaca
   const categoryColors = {
     "Cerah": "#ffffff",
-    "Cerah Berawan": "#d6f5d6",
-    "Berawan": "#cccccc",
+    "Cerah Berawan": "#d9f0ff",
+    "Berawan": "#a0c4ff",
     "Hujan Ringan": "#7be57b",
     "Hujan Sedang": "#ffd84d",
     "Hujan Lebat": "#ff9a2e",
@@ -67,10 +67,10 @@
     "Ekstrem": "#b84dff"
   };
 
-  const GEOJSON_FILE = 'Batas_SO_Kec.json';       // batas kecamatan
-  const FORECAST_FILE = 'prakiraan_per_kecamatan.json'; // hasil agregasi
+  const GEOJSON_FILE = "Batas_SO_Kec.json";          // batas kecamatan
+  const FORECAST_FILE = "prakiraan_per_kecamatan.json"; // hasil agregasi JSON
 
-  let map = L.map('map').setView([-7.9, 110.4], 9);
+  let map = L.map('map').setView([-7.5, 110.2], 9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OSM'
   }).addTo(map);
@@ -82,8 +82,6 @@
   let currentIndex = 0;
   let playSpeed = 2000;
 
-  function normName(s){ return (s||"").trim().toLowerCase(); }
-
   // Load forecast + geojson
   Promise.all([
     fetch(FORECAST_FILE).then(r => r.json()),
@@ -91,16 +89,19 @@
   ]).then(([forecast, geojson]) => {
     forecastData = forecast;
 
-    // Ambil semua slot waktu
+    // Ambil semua slot waktu dari JSON prakiraan
     const tsSet = new Set();
-    Object.values(forecastData).forEach(kecData=>{
-      Object.keys(kecData).forEach(t => tsSet.add(t));
+    Object.values(forecastData).forEach(perKec=>{
+      Object.keys(perKec).forEach(t=> tsSet.add(t));
     });
     timestamps = Array.from(tsSet).sort((a,b)=> new Date(a) - new Date(b));
 
-    // isi dropdown waktu
     const timeSelect = document.getElementById('timeSelect');
-    timestamps.forEach(t => {
+    if(timestamps.length === 0){
+      alert('Tidak ada slot waktu di data prakiraan.');
+      return;
+    }
+    timestamps.forEach(t=>{
       const opt = document.createElement('option');
       opt.value = t;
       opt.textContent = t;
@@ -111,7 +112,7 @@
     addGeojsonLayer(geojson, timestamps[currentIndex]);
 
     // event listeners
-    timeSelect.addEventListener('change', (e)=>{
+    timeSelect.addEventListener('change', e=>{
       const val = e.target.value;
       currentIndex = timestamps.indexOf(val);
       updateChoropleth(val);
@@ -128,7 +129,7 @@
       currentIndex = (currentIndex + 1) % timestamps.length;
       updateChoropleth(timestamps[currentIndex]);
     });
-    document.getElementById('speedSelect').addEventListener('change', (e)=>{
+    document.getElementById('speedSelect').addEventListener('change', e=>{
       playSpeed = parseInt(e.target.value);
       if(playInterval){ stopPlay(); startPlay(); }
     });
@@ -140,44 +141,48 @@
   });
 
   function styleFeature(feature, timeKey){
-    const kec = feature.properties.WADMKC;
+    const kec = feature.properties.WADMKC; // nama kecamatan
     let cuaca = null;
-
-    const key = Object.keys(forecastData).find(k => normName(k) === normName(kec));
-    if(key && forecastData[key][timeKey]){
-      cuaca = forecastData[key][timeKey].cuaca;
+    if(forecastData[kec] && forecastData[kec][timeKey]){
+      cuaca = forecastData[kec][timeKey].cuaca;
     }
-
     const color = categoryColors[cuaca] || '#cccccc';
-    return { color:'#444', weight:0.6, fillColor:color, fillOpacity:0.85 };
+    return { color:'#444', weight:0.8, fillColor:color, fillOpacity:0.8 };
   }
 
   function onEachFeature(feature, layer){
-    layer.on('click', function(){
+    layer.on('click', ()=>{
       const kec = feature.properties.WADMKC;
       const t = document.getElementById('timeSelect').value;
       let html = `<strong>${kec}</strong><br/>`;
 
-      const key = Object.keys(forecastData).find(k => normName(k) === normName(kec));
-      if(key && forecastData[key][t]){
-        const info = forecastData[key][t];
+      if(forecastData[kec] && forecastData[kec][t]){
+        const info = forecastData[kec][t];
         html += `Waktu: ${t}<br/>`;
         html += `Cuaca: ${info.cuaca}<br/>`;
         if(info.image){
-          html += `<img src="${info.image}" width="32"/>`;
+          html += `<img src="${info.image}" alt="${info.cuaca}" width="48"/>`;
         }
       } else {
         html += 'Data prakiraan tidak tersedia.';
       }
-
       layer.bindPopup(html).openPopup();
     });
+
+    // Label permanen nama kecamatan
+    if(feature.properties && feature.properties.WADMKC){
+      layer.bindTooltip(feature.properties.WADMKC, {
+        permanent: true,
+        direction: "center",
+        className: "kec-label"
+      });
+    }
   }
 
   function addGeojsonLayer(geojson, timeKey){
     if(geojsonLayer) map.removeLayer(geojsonLayer);
     geojsonLayer = L.geoJson(geojson, {
-      style: f => styleFeature(f, timeKey),
+      style: f=> styleFeature(f, timeKey),
       onEachFeature: onEachFeature
     }).addTo(map);
     map.fitBounds(geojsonLayer.getBounds(), {padding:[20,20]});
