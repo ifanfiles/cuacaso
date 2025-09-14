@@ -185,7 +185,7 @@ fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
   });
 
   function styleFeature(feature, timeKey){
-    const kode = feature.properties.KDEPUM;
+    const kode = feature.properties.WADMKC;
     let cuaca = null;
     if(forecastData[kode]){
       collectAllSlots(forecastData[kode]).forEach(slot=>{
@@ -199,7 +199,7 @@ fetch('Batas_SO_Kab.json').then(r=>r.json()).then(kabGeo=>{
   }
   function onEachFeature(feature, layer){
     layer.on('click', function(){
-      const kode = feature.properties.KDEPUM;
+      const kode = feature.properties.WADMKC;
       const t = document.getElementById('timeSelect').value;
       let html = `<strong>Kode: ${kode}</strong><br/>`;
 
