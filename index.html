@@ -13,27 +13,33 @@
     .legend .item { display:flex; align-items:center; gap:8px; }
     .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #999; }*/
     .legend {
-  background: #fff;
-  padding: 8px;
-  display: flex;           /* Bikin mendatar */
-  flex-direction: row;     /* Susun sejajar ke kanan */
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;               /* Jarak antar item */
-}
+      background: #fff;
+      padding: 6px;
+      font-size: 12px;
+      text-align: center;
+      width: 400px;   /* panjang legend */
+      }
 
-.legend .item {
-  display: flex;
-  flex-direction: column;  /* Nama cuaca di bawah kotak warna */
-  align-items: center;
-  font-size: 12px;
-}
+    .gradient-bar {
+      height: 20px;
+      width: 100%;
+      background: linear-gradient(
+       to right,
+      #0000ff,   /* biru   - hujan sangat ringan */
+      #00ff00,   /* hijau  - hujan ringan */
+      #ffff00,   /* kuning - hujan sedang */
+      #ff7f00,   /* oranye - hujan lebat */
+      #ff0000,   /* merah  - hujan sangat lebat */
+      #ff00ff    /* ungu   - ekstrem */
+      );
+      border: 1px solid #999;
+      margin-bottom: 4px;
+      }
 
-.colorbox {
-  width: 30px;
-  height: 12px;
-  border: 0.5px solid #999;
-}
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+    }
     .timestamp-overlay {
       position:absolute;
       bottom: 10px;   /* pindahkan ke bawah */
@@ -282,24 +288,30 @@
   }*/
     function drawLegend(){
   const legendDiv = document.getElementById('legend');
-  legendDiv.innerHTML = ''; // kosongkan dulu
-
-  const order = [
-    {label:"Hujan Sangat Ringan", color:"#0000ff"},
-    {label:"Hujan Ringan", color:"#00ff00"},
-    {label:"Hujan Sedang", color:"#ffff00"},
-    {label:"Hujan Lebat", color:"#ff7f00"},
-    {label:"Hujan Sangat Lebat", color:"#ff0000"}
-  ];
-
-  order.forEach(item=>{
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `<div class="colorbox" style="background:${item.color}"></div>
-                     <span>${item.label}</span>`;
-    legendDiv.appendChild(div);
-  });
+  legendDiv.innerHTML = `
+    <strong>Legenda (Reflektivitas dBZ)</strong><br/>
+    <div class="gradient-bar"></div>
+    <div class="legend-labels">
+      <span>5</span>
+      <span>15</span>
+      <span>25</span>
+      <span>35</span>
+      <span>45</span>
+      <span>55</span>
+      <span>65</span>
+      <span>70</span>
+    </div>
+    <div class="legend-labels">
+      <span>H. Sangat Ringan</span>
+      <span>Ringan</span>
+      <span>Sedang</span>
+      <span>Lebat</span>
+      <span>Sangat Lebat</span>
+      <span>Ekstrem</span>
+    </div>
+  `;
 }
+
 
   function startPlay(){
     if(playInterval) return;
