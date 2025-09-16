@@ -32,17 +32,19 @@
   height: 100%;
 }
 
+.legend-angka {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-top: 2px;
+}
 .legend-labels {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  justify-content: space-between;
   font-size: 11px;
+  margin-top: 2px
+    text-align: center;
 }
-/*.legend-labels {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  font-size: 11px;
-}*/
 
     .timestamp-overlay {
       position:absolute;
@@ -302,7 +304,7 @@
       <div style="background:#ff0000"></div> <!-- 55-60 -->
       <div style="background:#ff00ff"></div> <!-- 65-70 -->
     </div>
-    <div class="legend-labels">
+    <div class="legend-angka">
       <span>0</span>
       <span>5</span>
       <span>20</span>
