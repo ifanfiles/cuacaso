@@ -13,33 +13,31 @@
     .legend .item { display:flex; align-items:center; gap:8px; }
     .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #999; }*/
     .legend {
-      background: #fff;
-      padding: 6px;
-      font-size: 12px;
-      text-align: center;
-      width: 400px;   /* panjang legend */
-      }
+  background: #fff;
+  padding: 6px;
+  font-size: 12px;
+  text-align: center;
+  width: 480px;
+}
 
-    .gradient-bar {
-      height: 20px;
-      width: 100%;
-      background: linear-gradient(
-       to right,
-      #0000ff,   /* biru   - hujan sangat ringan */
-      #00ff00,   /* hijau  - hujan ringan */
-      #ffff00,   /* kuning - hujan sedang */
-      #ff7f00,   /* oranye - hujan lebat */
-      #ff0000,   /* merah  - hujan sangat lebat */
-      #ff00ff    /* ungu   - ekstrem */
-      );
-      border: 1px solid #999;
-      margin-bottom: 4px;
-      }
+.legend-bar {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr); /* jumlah kategori */
+  height: 20px;
+  border: 1px solid #999;
+  margin-bottom: 4px;
+}
 
-    .legend-labels {
-      display: flex;
-      justify-content: space-between;
-    }
+.legend-bar div {
+  height: 100%;
+}
+
+.legend-labels {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  font-size: 11px;
+}
+
     .timestamp-overlay {
       position:absolute;
       bottom: 10px;   /* pindahkan ke bawah */
@@ -289,20 +287,25 @@
     function drawLegend(){
   const legendDiv = document.getElementById('legend');
   legendDiv.innerHTML = `
-    <strong>Legenda (Reflektivitas dBZ)</strong><br/>
-    <div class="gradient-bar"></div>
+    <strong>Legenda Hujan (Reflektivitas dBZ)</strong><br/>
+    <div class="legend-bar">
+      <div style="background:#0000ff"></div> <!-- 5-15 -->
+      <div style="background:#00ff00"></div> <!-- 20-30 -->
+      <div style="background:#ffff00"></div> <!-- 35-40 -->
+      <div style="background:#ff7f00"></div> <!-- 45-50 -->
+      <div style="background:#ff0000"></div> <!-- 55-60 -->
+      <div style="background:#ff00ff"></div> <!-- 65-70 -->
+    </div>
     <div class="legend-labels">
       <span>5</span>
-      <span>15</span>
-      <span>25</span>
+      <span>20</span>
       <span>35</span>
       <span>45</span>
       <span>55</span>
       <span>65</span>
-      <span>70</span>
     </div>
     <div class="legend-labels">
-      <span>H. Sangat Ringan</span>
+      <span>Sangat Ringan</span>
       <span>Ringan</span>
       <span>Sedang</span>
       <span>Lebat</span>
@@ -311,7 +314,6 @@
     </div>
   `;
 }
-
 
   function startPlay(){
     if(playInterval) return;
