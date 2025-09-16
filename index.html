@@ -9,9 +9,31 @@
     body { margin:0; font-family: Arial, sans-serif; }
     #map { height: 86vh; }
     .controls { padding:8px; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
-    .legend { background:#fff; padding:8px; line-height:1.6; }
+    /*.legend { background:#fff; padding:8px; line-height:1.6; }
     .legend .item { display:flex; align-items:center; gap:8px; }
-    .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #999; }
+    .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #999; }*/
+    .legend {
+  background: #fff;
+  padding: 8px;
+  display: flex;           /* Bikin mendatar */
+  flex-direction: row;     /* Susun sejajar ke kanan */
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;               /* Jarak antar item */
+}
+
+.legend .item {
+  display: flex;
+  flex-direction: column;  /* Nama cuaca di bawah kotak warna */
+  align-items: center;
+  font-size: 12px;
+}
+
+.colorbox {
+  width: 30px;
+  height: 12px;
+  border: 0.5px solid #999;
+}
     .timestamp-overlay {
       position:absolute;
       bottom: 10px;   /* pindahkan ke bawah */
@@ -246,7 +268,7 @@
     document.getElementById('timestamp').textContent = t || '-';
   }
 
-  function drawLegend(){
+/*  function drawLegend(){
     const legendDiv = document.getElementById('legend');
     legendDiv.innerHTML = '<strong>Legenda</strong><br/>';
     const order = ["Cerah","Cerah Berawan","Berawan","Hujan Ringan","Hujan Sedang","Hujan Lebat","Hujan Sangat Lebat","Ekstrem"];
@@ -257,7 +279,27 @@
       item.innerHTML = `<span class="colorbox" style="background:${col}"></span> ${k}`;
       legendDiv.appendChild(item);
     });
-  }
+  }*/
+    function drawLegend(){
+  const legendDiv = document.getElementById('legend');
+  legendDiv.innerHTML = ''; // kosongkan dulu
+
+  const order = [
+    {label:"Hujan Sangat Ringan", color:"#0000ff"},
+    {label:"Hujan Ringan", color:"#00ff00"},
+    {label:"Hujan Sedang", color:"#ffff00"},
+    {label:"Hujan Lebat", color:"#ff7f00"},
+    {label:"Hujan Sangat Lebat", color:"#ff0000"}
+  ];
+
+  order.forEach(item=>{
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `<div class="colorbox" style="background:${item.color}"></div>
+                     <span>${item.label}</span>`;
+    legendDiv.appendChild(div);
+  });
+}
 
   function startPlay(){
     if(playInterval) return;
