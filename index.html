@@ -16,7 +16,7 @@
       psition:fixed;
       background: #fff;
       padding: 6px;
-      font-size:1.5vw;
+      font-size:12px;
       text-align: center;
       width: 95%; 
       max-width: 800px;
@@ -26,8 +26,9 @@
 
     .legend-bar {
       display: grid;
-      grid-template-columns: repeat(8, 100px); /* jumlah kategori */
+      grid-template-columns: repeat(8,1fr); /* jumlah kategori */
       height: 1vw;
+      width: 80vw;
       border: 1px solid #999;
       }
 
@@ -43,7 +44,7 @@
       }
     .legend-labels {
       display: grid;
-      grid-template-columns: repeat(8, 100px); /* jumlah kategori */
+      grid-template-columns: repeat(8, 1fr); /* jumlah kategori */
       height: 1vw;
       font-size: 10px;
       }
