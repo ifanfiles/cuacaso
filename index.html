@@ -18,7 +18,8 @@
       font-size: 12px;
       text-align: center;
       width: 800px;
-       left: 50%;
+      left: 50%;
+      transform: translateX(-50%); /* geser ke kiri separuh lebarnya supaya benar2 center */
       }
 
     .legend-bar {
@@ -50,9 +51,9 @@
 
     .timestamp-overlay {
       position:absolute;
-      bottom: 200px;   /* pindahkan ke bawah */
+      top: 10px;   /* pindahkan ke bawah */
       left: 50%;      /* posisikan di tengah horizontal */
-      transform: translateX(-50%); /* geser ke kiri separuh lebarnya supaya benar2 center */
+      /*transform: translateX(-50%); /* geser ke kiri separuh lebarnya supaya benar2 center */
       background:rgba(255,255,255,0.9);
       padding:6px 12px;
       border-radius:4px;
