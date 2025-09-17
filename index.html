@@ -13,39 +13,39 @@
     .legend .item { display:flex; align-items:center; gap:8px; }
     .colorbox { width:18px; height:14px; display:inline-block; border:0.5px solid #999; }*/
     .legend {
-  background: #fff;
-  padding: 6px;
-  font-size: 12px;
-  text-align: center;
-  width: 600px;
-}
+      background: #fff;
+      padding: 6px;
+      font-size: 12px;
+      text-align: center;
+      width: 800px;
+      }
 
-.legend-bar {
-  display: grid;
-  grid-template-columns: repeat(6, 100px); /* jumlah kategori */
-  height: 15px;
-  border: 1px solid #999;
-}
+    .legend-bar {
+      display: grid;
+      grid-template-columns: repeat(8, 100px); /* jumlah kategori */
+      height: 15px;
+      border: 1px solid #999;
+      }
 
-.legend-bar div {
-  height: 100%;
-}
+    .legend-bar div {
+      height: 100%;
+      }
 
-.legend-angka {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-  margin-top: 2px;
-}
-.legend-labels {
-  display: grid;
-  grid-template-columns: repeat(6, 100px); /* jumlah kategori */
-  height: 12px;
-  font-size: 10px;
-}
-.legend-labels span {
-  border: 1px solid #999;  /* garis tiap kotak */
-}
+    .legend-angka {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      margin-top: 2px;
+      }
+    .legend-labels {
+      display: grid;
+      grid-template-columns: repeat(8, 100px); /* jumlah kategori */
+      height: 12px;
+      font-size: 10px;
+      }
+    .legend-labels span {
+      border: 1px solid #999;  /* garis tiap kotak */
+      }
 
     .timestamp-overlay {
       position:absolute;
@@ -58,7 +58,7 @@
       font-size:25px;
       font-weight:bold;
       z-index:1000;
-    }
+      }
     .kab-label {
       background: transparent !important;
       border: none !important;
@@ -67,7 +67,7 @@
       font-weight: bold;
       color: black;
       text-shadow: 1px 1px 2px white;
-    }
+      }
   </style>
 </head>
 <body>
@@ -298,6 +298,8 @@
   legendDiv.innerHTML = `
     <strong>Legenda Hujan (Reflektivitas dBZ)</strong><br/>
     <div class="legend-angka">
+      <span>-</span>
+      <span>-</span>
       <span>0</span>
       <span>5</span>
       <span>20</span>
@@ -307,20 +309,24 @@
       <span>65</span>
     </div>
     <div class="legend-bar">
-      <div style="background:#0000ff"></div> <!-- 5-15 -->
-      <div style="background:#00ff00"></div> <!-- 20-30 -->
-      <div style="background:#ffff00"></div> <!-- 35-40 -->
-      <div style="background:#ff7f00"></div> <!-- 45-50 -->
-      <div style="background:#ff0000"></div> <!-- 55-60 -->
-      <div style="background:#ff00ff"></div> <!-- 65-70 -->
+      <div style="background:#ffffff"></div> <!-- Cerah -->
+      <div style="background:#d9f0ff"></div> <!-- Cerah berawan -->
+      <div style="background:#a0c4ff"></div> <!-- Berawan -->
+      <div style="background:#7be57b"></div> <!-- Hujan ringan -->
+      <div style="background:#ffd84d"></div> <!-- Hujan Sedang -->
+      <div style="background:#ff9a2e"></div> <!-- Hujan Lebat -->
+      <div style="background:#ff4d4d"></div> <!-- Hujan Sangat Lebat -->
+      <div style="background:##b84dff"></div> <!-- Hujan Ekstrem -->
     </div>
     <div class="legend-labels">
-      <span>Sangat Ringan</span>
-      <span>Ringan</span>
-      <span>Sedang</span>
-      <span>Lebat</span>
-      <span>Sangat Lebat</span>
-      <span>Ekstrem</span>
+      <span>Cerah</span>
+      <span>Cerah Berawan</span>
+      <span>Berawan</span>
+      <span>Hujan Ringan</span>
+      <span>Hujan Sedang</span>
+      <span>Hujan Lebat</span>
+      <span>Hujan Sangat Lebat</span>
+      <span>Hujan Ekstrem</span>
     </div>
   `;
 }
